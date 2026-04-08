@@ -3,10 +3,9 @@ import sys
 import time
 from pathlib import Path
 
-from rich.console import Console
+from ui.console import console
 
 __version__ = "0.1.0"
-console = Console()
 
 
 def main() -> None:
