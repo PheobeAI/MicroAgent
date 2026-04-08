@@ -1,8 +1,61 @@
 # main.py
+import sys
+import time
+from pathlib import Path
+
+from rich.console import Console
+
 __version__ = "0.1.0"
+console = Console()
+
 
 def main() -> None:
-    print(f"MicroAgent v{__version__}")
+    # ── 1. Load config ────────────────────────────────────────────────────────
+    from core.config import load_config
+    config_path = Path(sys.argv[0]).parent / "config.yaml"
+    config = load_config(config_path)
+
+    if not Path(config_path).exists():
+        console.print(
+            "[yellow]提示：未找到 config.yaml，使用默认配置。"
+            "可在 exe 同级目录创建 config.yaml 进行自定义。[/]"
+        )
+
+    # ── 2. Load tools ─────────────────────────────────────────────────────────
+    from tools.registry import ToolRegistry
+    tools = ToolRegistry(config.tools).load()
+
+    # ── 3. Load model ─────────────────────────────────────────────────────────
+    model_path = config.model.path
+    console.print(f"[bold]正在加载模型:[/] {model_path} ...")
+    t0 = time.perf_counter()
+
+    from core.model import LlamaCppBackend
+    backend = LlamaCppBackend(config.model)
+    try:
+        backend.load()
+    except Exception as e:
+        console.print(f"[red]模型加载失败: {e}[/]")
+        console.print("请检查 config.yaml 中的 model.path 是否指向有效的 .gguf 文件。")
+        sys.exit(1)
+
+    elapsed = time.perf_counter() - t0
+    mem_gb = backend.get_memory_usage_gb()
+    console.print(
+        f"[green]模型加载完成[/] ({elapsed:.1f}s) | "
+        f"内存占用: {mem_gb:.1f}GB | "
+        f"工具: {len(tools)} 个已启用"
+    )
+
+    # ── 4. Create agent ───────────────────────────────────────────────────────
+    from core.agent import create_agent_runner
+    smolagents_model = backend.to_smolagents_model()
+    agent = create_agent_runner(config.agent, smolagents_model, tools)
+
+    # ── 5. Start CLI ──────────────────────────────────────────────────────────
+    from cli.app import run_cli
+    run_cli(agent, config, tools)
+
 
 if __name__ == "__main__":
     main()
