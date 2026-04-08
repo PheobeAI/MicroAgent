@@ -16,7 +16,8 @@ class ModelConfig(BaseModel):
 
 class AgentConfig(BaseModel):
     mode: Literal["tool_calling", "code"] = "tool_calling"
-    verbose: bool = True
+    verbose: bool = False
+    show_thinking: bool = True
 
 
 class WebSearchConfig(BaseModel):

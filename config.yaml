@@ -3,7 +3,7 @@
 
 model:
   # GGUF 模型文件路径（相对于本文件，或绝对路径）
-  path: ./models/gemma-4-e2b-instruct.gguf
+  path: ./models/gemma-4-E2B-it-Q4_K_M.gguf
   # GPU 层数：-1 = 全部卸载到 GPU（推荐），0 = 纯 CPU
   n_gpu_layers: -1
   # CPU 推理线程数（建议 4-6，不影响系统其他任务）
@@ -16,8 +16,10 @@ model:
 agent:
   # 运行模式：tool_calling（推荐）或 code（需要更强模型）
   mode: tool_calling
-  # 是否显示 Agent 推理过程（true = 显示工具调用步骤）
-  verbose: true
+  # 是否显示 smolagents 内部调试日志（面向开发者，通常设为 false）
+  verbose: false
+  # 是否将模型的推理思考内容展示给用户（默认开启，可设为 false 静默）
+  show_thinking: true
 
 tools:
   web_search:
