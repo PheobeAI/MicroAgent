@@ -1,0 +1,8 @@
+smolagents>=0.3.0
+llama-cpp-python>=0.2.90
+rich>=13.7.0
+psutil>=5.9.0
+pydantic>=2.6.0
+pyyaml>=6.0.1
+duckduckgo-search>=6.2.0
+tavily-python>=0.3.3
