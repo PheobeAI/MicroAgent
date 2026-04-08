@@ -12,7 +12,8 @@ def test_defaults_when_file_missing():
     assert config.model.n_ctx == 4096
     assert config.model.max_tokens == 512
     assert config.agent.mode == "tool_calling"
-    assert config.agent.verbose is True
+    assert config.agent.verbose is False
+    assert config.agent.show_thinking is True
     assert config.tools.file_manager.allow_destructive is False
     assert config.tools.file_manager.allowed_dirs == []
     assert config.tools.web_search.tavily_api_key == ""
