@@ -36,7 +36,7 @@ def test_think_tool_metadata():
 def test_tool_calling_runner_prepends_think_tool_and_passes_instructions():
     from unittest.mock import MagicMock
     from core.config import AgentConfig
-    from core.agent import create_agent_runner
+    from core.agent import create_agent_runner, _THINK_INSTRUCTIONS
 
     config = AgentConfig(mode="tool_calling", verbose=False, show_thinking=True)
     mock_model = MagicMock()
@@ -50,7 +50,7 @@ def test_tool_calling_runner_prepends_think_tool_and_passes_instructions():
     assert isinstance(kw["tools"][0], ThinkTool), "ThinkTool 应在 tools 列表首位"
     assert kw["tools"][0]._show_thinking is True
     assert kw["tools"][1] is mock_tool
-    assert "instructions" in kw and kw["instructions"]
+    assert kw["instructions"] == _THINK_INSTRUCTIONS
 
 
 def test_code_agent_runner_does_not_get_think_tool():
@@ -69,3 +69,20 @@ def test_code_agent_runner_does_not_get_think_tool():
     passed_tools = mock_cls.call_args.kwargs["tools"]
     tool_names = [t.name for t in passed_tools if hasattr(t, "name")]
     assert "think" not in tool_names, "CodeAgentRunner 不应包含 ThinkTool"
+
+
+def test_tool_calling_runner_propagates_show_thinking_false():
+    from unittest.mock import MagicMock
+    from core.config import AgentConfig
+    from core.agent import create_agent_runner
+
+    config = AgentConfig(mode="tool_calling", verbose=False, show_thinking=False)
+    mock_model = MagicMock()
+
+    with patch("core.agent.ToolCallingAgent") as mock_cls:
+        mock_cls.return_value.run.return_value = "ok"
+        create_agent_runner(config, mock_model, [])
+
+    kw = mock_cls.call_args.kwargs
+    assert kw["tools"][0]._show_thinking is False
+

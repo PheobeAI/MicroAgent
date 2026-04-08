@@ -1,7 +1,7 @@
 # tests/test_agent.py
 from unittest.mock import MagicMock, patch
 from core.config import AgentConfig
-from core.agent import create_agent_runner
+from core.agent import create_agent_runner, _THINK_INSTRUCTIONS
 from smolagents.monitoring import LogLevel
 
 
@@ -20,8 +20,9 @@ def test_tool_calling_agent_created_and_runs():
     assert kw["model"] is mock_model
     assert kw["verbosity_level"] == LogLevel.ERROR
     assert kw["tools"][1] is mock_tools[0]
-    assert "instructions" in kw
+    assert kw["instructions"] == _THINK_INSTRUCTIONS
     assert result == "the answer"
+
 
 
 def test_code_agent_created_when_mode_is_code():
