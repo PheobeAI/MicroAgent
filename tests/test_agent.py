@@ -2,6 +2,7 @@
 from unittest.mock import MagicMock, patch
 from core.config import AgentConfig
 from core.agent import create_agent_runner
+from smolagents.monitoring import LogLevel
 
 
 def test_tool_calling_agent_created_and_runs():
@@ -14,7 +15,12 @@ def test_tool_calling_agent_created_and_runs():
         runner = create_agent_runner(config, mock_model, mock_tools)
         result = runner.run("what is 2+2?")
 
-    mock_cls.assert_called_once_with(tools=mock_tools, model=mock_model, verbose=False)
+    mock_cls.assert_called_once()
+    kw = mock_cls.call_args.kwargs
+    assert kw["model"] is mock_model
+    assert kw["verbosity_level"] == LogLevel.ERROR
+    assert kw["tools"][1] is mock_tools[0]
+    assert "instructions" in kw
     assert result == "the answer"
 
 
@@ -27,5 +33,7 @@ def test_code_agent_created_when_mode_is_code():
         runner = create_agent_runner(config, mock_model, [])
         result = runner.run("write a hello world")
 
-    mock_cls.assert_called_once_with(tools=[], model=mock_model, verbose=True)
+    mock_cls.assert_called_once_with(
+        tools=[], model=mock_model, verbosity_level=LogLevel.DEBUG
+    )
     assert result == "code result"
