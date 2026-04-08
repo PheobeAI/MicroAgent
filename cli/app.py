@@ -1,14 +1,12 @@
 # cli/app.py
 from typing import List, Any
 
-from rich.console import Console
 from rich.prompt import Prompt
 from rich.rule import Rule
 
 from core.agent import AgentRunner
 from core.config import AppConfig
-
-console = Console()
+from ui.console import console
 
 _COMMANDS = {
     "/help": "显示此帮助信息",
