@@ -88,13 +88,133 @@ class FindFilesTool(MicroTool):
         return f"找到 {len(matches)} 个匹配文件:\n" + "\n".join(lines)
 
 
-# ─── Factory (placeholder for Task 6) ────────────────────────────────────────
+# ─── Destructive tools ────────────────────────────────────────────────────────
+
+
+class _DestructiveTool(MicroTool):
+    """Mixin for tools that check allowed_dirs before operating."""
+
+    def __init__(self, allowed_dirs: List[str]) -> None:
+        super().__init__()
+        self._allowed = [Path(d).resolve() for d in allowed_dirs] if allowed_dirs else []
+
+    def _check_allowed(self, path: Path) -> bool:
+        if not self._allowed:
+            return True
+        resolved = path.resolve()
+        return any(resolved == d or d in resolved.parents for d in self._allowed)
+
+    def _guard(self, path: Path) -> str | None:
+        if not self._check_allowed(path):
+            return f"错误：路径 {path} 不在允许的目录范围内"
+        return None
+
+
+class WriteFileTool(_DestructiveTool):
+    name = "write_file"
+    description = "将内容写入文件（会覆盖已有内容）。需要 allow_destructive: true。"
+    inputs = {
+        "path": {"type": "string", "description": "目标文件路径"},
+        "content": {"type": "string", "description": "要写入的文本内容"},
+    }
+    output_type = "string"
+
+    def forward(self, path: str, content: str) -> str:
+        p = Path(path)
+        if err := self._guard(p):
+            return err
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(content, encoding="utf-8")
+        return f"成功写入 {len(content)} 字符到 {path}"
+
+
+class AppendFileTool(_DestructiveTool):
+    name = "append_file"
+    description = "向已有文件末尾追加内容。需要 allow_destructive: true。"
+    inputs = {
+        "path": {"type": "string", "description": "目标文件路径"},
+        "content": {"type": "string", "description": "要追加的文本内容"},
+    }
+    output_type = "string"
+
+    def forward(self, path: str, content: str) -> str:
+        p = Path(path)
+        if err := self._guard(p):
+            return err
+        with open(p, "a", encoding="utf-8") as f:
+            f.write(content)
+        return f"成功追加 {len(content)} 字符到 {path}"
+
+
+class CreateDirectoryTool(_DestructiveTool):
+    name = "create_directory"
+    description = "创建目录（包含所有中间目录，等效于 mkdir -p）。需要 allow_destructive: true。"
+    inputs = {"path": {"type": "string", "description": "要创建的目录路径"}}
+    output_type = "string"
+
+    def forward(self, path: str) -> str:
+        p = Path(path)
+        if err := self._guard(p):
+            return err
+        p.mkdir(parents=True, exist_ok=True)
+        return f"成功创建目录: {path}"
+
+
+class MoveFileTool(_DestructiveTool):
+    name = "move_file"
+    description = "移动或重命名文件。需要 allow_destructive: true。"
+    inputs = {
+        "src": {"type": "string", "description": "源文件路径"},
+        "dst": {"type": "string", "description": "目标路径"},
+    }
+    output_type = "string"
+
+    def forward(self, src: str, dst: str) -> str:
+        s, d = Path(src), Path(dst)
+        if err := self._guard(s):
+            return err
+        if not s.exists():
+            return f"错误：源文件不存在: {src}"
+        s.rename(d)
+        return f"成功移动 {src} -> {dst}"
+
+
+class DeleteFileTool(_DestructiveTool):
+    name = "delete_file"
+    description = "删除单个文件（不删除目录）。需要 allow_destructive: true。"
+    inputs = {"path": {"type": "string", "description": "要删除的文件路径"}}
+    output_type = "string"
+
+    def forward(self, path: str) -> str:
+        p = Path(path)
+        if err := self._guard(p):
+            return err
+        if not p.exists():
+            return f"错误：文件不存在: {path}"
+        if not p.is_file():
+            return f"错误：{path} 不是文件（拒绝删除目录）"
+        p.unlink()
+        return f"成功删除: {path}"
+
+
+# ─── Factory ─────────────────────────────────────────────────────────────────
 
 
 def create_file_manager_tools(config: FileManagerConfig) -> List[MicroTool]:
-    return [
+    read_tools: List[MicroTool] = [
         ListDirectoryTool(),
         ReadFileTool(),
         GetFileInfoTool(),
         FindFilesTool(),
     ]
+    if not config.allow_destructive:
+        return read_tools
+
+    destructive_tools: List[MicroTool] = [
+        WriteFileTool(config.allowed_dirs),
+        AppendFileTool(config.allowed_dirs),
+        CreateDirectoryTool(config.allowed_dirs),
+        MoveFileTool(config.allowed_dirs),
+        DeleteFileTool(config.allowed_dirs),
+    ]
+    return read_tools + destructive_tools
