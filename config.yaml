@@ -1,0 +1,42 @@
+# MicroAgent 配置文件
+# 将本文件放在 microagent.exe 同级目录
+
+model:
+  # GGUF 模型文件路径（相对于本文件，或绝对路径）
+  path: ./models/gemma-4-e2b-instruct.gguf
+  # GPU 层数：-1 = 全部卸载到 GPU（推荐），0 = 纯 CPU
+  n_gpu_layers: -1
+  # CPU 推理线程数（建议 4-6，不影响系统其他任务）
+  n_threads: 6
+  # 上下文长度（token 数）
+  n_ctx: 4096
+  # 单次最大生成 token 数
+  max_tokens: 512
+
+agent:
+  # 运行模式：tool_calling（推荐）或 code（需要更强模型）
+  mode: tool_calling
+  # 是否显示 Agent 推理过程（true = 显示工具调用步骤）
+  verbose: true
+
+tools:
+  web_search:
+    enabled: true
+    # Tavily API Key（留空则使用 DuckDuckGo 免费搜索）
+    # 申请地址：https://tavily.com
+    tavily_api_key: ""
+
+  file_manager:
+    enabled: true
+    # 是否允许写入/删除/移动操作（默认关闭以防误操作）
+    allow_destructive: false
+    # 破坏性操作允许的目录白名单（空列表 = 不限制）
+    allowed_dirs: []
+
+  system_info:
+    enabled: true
+
+runtime:
+  # 系统提示语言（zh = 中文，en = 英文）
+  language: zh
+  log_level: info
