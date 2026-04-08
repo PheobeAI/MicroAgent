@@ -15,7 +15,7 @@ def main() -> None:
     config_path = Path(sys.argv[0]).parent / "config.yaml"
     config = load_config(config_path)
 
-    if not Path(config_path).exists():
+    if not config_path.exists():
         console.print(
             "[yellow]提示：未找到 config.yaml，使用默认配置。"
             "可在 exe 同级目录创建 config.yaml 进行自定义。[/]"

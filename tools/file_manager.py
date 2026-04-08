@@ -81,6 +81,9 @@ class FindFilesTool(MicroTool):
         p = Path(directory)
         if not p.exists():
             return f"错误：目录不存在: {directory}"
+        # Guard against path traversal via pattern
+        if Path(pattern).is_absolute() or ".." in Path(pattern).parts:
+            return "错误：不支持包含路径遍历的搜索模式"
         matches = sorted(p.rglob(pattern))
         if not matches:
             return f"未找到匹配 '{pattern}' 的文件"
@@ -123,9 +126,12 @@ class WriteFileTool(_DestructiveTool):
         p = Path(path)
         if err := self._guard(p):
             return err
-        p.parent.mkdir(parents=True, exist_ok=True)
-        p.write_text(content, encoding="utf-8")
-        return f"成功写入 {len(content)} 字符到 {path}"
+        try:
+            p.parent.mkdir(parents=True, exist_ok=True)
+            p.write_text(content, encoding="utf-8")
+            return f"成功写入 {len(content)} 字符到 {path}"
+        except Exception as e:
+            return f"错误：写入文件失败: {e}"
 
 
 class AppendFileTool(_DestructiveTool):
@@ -141,9 +147,12 @@ class AppendFileTool(_DestructiveTool):
         p = Path(path)
         if err := self._guard(p):
             return err
-        with open(p, "a", encoding="utf-8") as f:
-            f.write(content)
-        return f"成功追加 {len(content)} 字符到 {path}"
+        try:
+            with open(p, "a", encoding="utf-8") as f:
+                f.write(content)
+            return f"成功追加 {len(content)} 字符到 {path}"
+        except Exception as e:
+            return f"错误：追加文件失败: {e}"
 
 
 class CreateDirectoryTool(_DestructiveTool):
@@ -172,6 +181,8 @@ class MoveFileTool(_DestructiveTool):
     def forward(self, src: str, dst: str) -> str:
         s, d = Path(src), Path(dst)
         if err := self._guard(s):
+            return err
+        if err := self._guard(d):
             return err
         if not s.exists():
             return f"错误：源文件不存在: {src}"

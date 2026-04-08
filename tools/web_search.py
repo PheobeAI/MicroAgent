@@ -29,24 +29,30 @@ class WebSearchTool(MicroTool):
         return self._search_duckduckgo(query)
 
     def _search_tavily(self, query: str) -> str:
-        client = TavilyClient(api_key=self._tavily_api_key)
-        response = client.search(query, max_results=5)
-        results = response.get("results", [])
-        if not results:
-            return "未找到相关结果"
-        lines = [
-            f"{i + 1}. {r['title']}\n   {r['url']}\n   {r['content'][:200]}"
-            for i, r in enumerate(results)
-        ]
-        return "\n\n".join(lines)
+        try:
+            client = TavilyClient(api_key=self._tavily_api_key)
+            response = client.search(query, max_results=5)
+            results = response.get("results", [])
+            if not results:
+                return "未找到相关结果"
+            lines = [
+                f"{i + 1}. {r['title']}\n   {r['url']}\n   {r['content'][:200]}"
+                for i, r in enumerate(results)
+            ]
+            return "\n\n".join(lines)
+        except Exception as e:
+            return f"错误：Tavily 搜索失败: {e}"
 
     def _search_duckduckgo(self, query: str) -> str:
-        with DDGS() as ddgs:
-            results = list(ddgs.text(query, max_results=5))
-        if not results:
-            return "未找到相关结果"
-        lines = [
-            f"{i + 1}. {r['title']}\n   {r['href']}\n   {r['body'][:200]}"
-            for i, r in enumerate(results)
-        ]
-        return "\n\n".join(lines)
+        try:
+            with DDGS() as ddgs:
+                results = list(ddgs.text(query, max_results=5))
+            if not results:
+                return "未找到相关结果"
+            lines = [
+                f"{i + 1}. {r['title']}\n   {r['href']}\n   {r['body'][:200]}"
+                for i, r in enumerate(results)
+            ]
+            return "\n\n".join(lines)
+        except Exception as e:
+            return f"错误：DuckDuckGo 搜索失败: {e}"

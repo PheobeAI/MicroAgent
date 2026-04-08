@@ -50,4 +50,6 @@ class LlamaCppBackend(ModelBackend):
         return psutil.Process().memory_info().rss / (1024 ** 3)
 
     def to_smolagents_model(self) -> Any:
+        if self._llm is None:
+            raise RuntimeError("Model has not been loaded. Call load() first.")
         return LlamaCppModel(self._llm, max_new_tokens=self._config.max_tokens)

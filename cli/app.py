@@ -53,7 +53,12 @@ def _handle_command(cmd: str, tools: List[Any], config: AppConfig) -> None:
         console.clear()
         _print_header(tools)
     elif cmd == "/config":
-        console.print_json(config.model_dump_json(indent=2))
+        import json
+        data = config.model_dump()
+        # Redact API key
+        if data.get("tools", {}).get("web_search", {}).get("tavily_api_key"):
+            data["tools"]["web_search"]["tavily_api_key"] = "***"
+        console.print_json(json.dumps(data, indent=2, ensure_ascii=False))
     else:
         console.print(f"[red]未知命令: {cmd}[/]。输入 /help 查看可用命令。")
 
