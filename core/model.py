@@ -78,18 +78,21 @@ class _LlamaCppSmolagentsModel(Model):
         tools_to_call_from=None,
         **kwargs,
     ) -> "ChatMessage":
-        # Pass tools_to_call_from to llama-cpp so it injects them using
-        # Gemma's native chat template. This is more compact than smolagents'
-        # JSON-based tool-description prompt and produces stable Gemma-format
-        # output (<|tool_call>call:NAME{...}<tool_call|>).
+        # Do NOT pass tools_to_call_from to llama-cpp. When passed, llama-cpp
+        # enables Gemma's native chat template which outputs tool calls as
+        # special tokens that are stripped from the `content` field, leaving
+        # content='' — our regex parser then finds nothing and smolagents
+        # raises a JSON parse error.
         #
-        # Note: llama-cpp cannot parse Gemma's output back into tool_calls
-        # (always returns null). _parse_gemma_tool_calls() handles that below.
+        # Tool descriptions are already injected by smolagents into the system
+        # prompt as text. The model outputs tool calls as inline text
+        # (<|tool_call>call:NAME{...}<tool_call|>), which _parse_gemma_tool_calls
+        # can match reliably.
         completion_kwargs = self._prepare_completion_kwargs(
             messages=messages,
             stop_sequences=stop_sequences,
             response_format=response_format,
-            tools_to_call_from=tools_to_call_from,
+            tools_to_call_from=None,
         )
         completion_kwargs["max_tokens"] = self._max_new_tokens
 
