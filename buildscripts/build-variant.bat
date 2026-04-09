@@ -85,6 +85,10 @@ if /i "%MODE%"=="release" (
     )
 ) else (
     xcopy /e /i /y "%BUILD_DIR%\main.dist" "%DIST_DIR%\"
+    if errorlevel 1 (
+        echo [build-variant] ERROR: Failed to stage standalone build to dist
+        exit /b 1
+    )
 )
 copy config.yaml "%DIST_DIR%\config.yaml" 2>nul
 copy README.txt "%DIST_DIR%\README.txt" 2>nul
