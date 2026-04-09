@@ -48,6 +48,7 @@ if "%MODE%"=="release" (
     main.py
 ) else (
   python -m nuitka ^
+    --standalone ^
     --include-package=smolagents ^
     --include-package-data=smolagents ^
     --include-package=llama_cpp ^
