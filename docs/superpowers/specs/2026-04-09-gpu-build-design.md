@@ -18,7 +18,7 @@
 | 机器 | GPU | 加速后端 | 说明 |
 |---|---|---|---|
 | 当前构建机 | NVIDIA 4080 | CUDA | 同时承担所有变体的构建工作 |
-| 目标机 A | NVIDIA 4070 Ti Super | CUDA | 运行 microagent-cuda.exe |
+| 目标机 A | NVIDIA 4070 Ti Super（CUDA 13.1） | CUDA | 运行 microagent-cuda.exe |
 | 目标机 B | AMD R7 8845H（Radeon 780M iGPU） | Vulkan | 运行 microagent-vulkan.exe；ROCm 不支持 Windows 集显 |
 | 通用备用 | 无 GPU | CPU | 运行 microagent-cpu.exe |
 
@@ -66,7 +66,13 @@ pip install llama-cpp-python ^
   --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cu124
 ```
 
-运行时依赖：NVIDIA 驱动自带的 CUDA Runtime DLL。
+**CUDA 版本说明：**
+- 目标机 A 使用 CUDA 13.1，但 NVIDIA 保证 CUDA Runtime 向后兼容
+- cu124 wheel 可在 CUDA 13.1 驱动上正常运行
+- `install-deps.bat` 应在构建时查询 `https://abetlen.github.io/llama-cpp-python/whl/` 的可用版本列表，优先选用最新的 cu1xx wheel（如已有 cu125/cu126 则用更新的），回退到 cu124
+- 实际选用的 wheel 版本写入构建日志，便于排查运行时问题
+
+运行时依赖：NVIDIA 驱动自带的 CUDA Runtime DLL（无需在目标机单独安装 CUDA Toolkit）。
 
 ### 4.2 Vulkan 变体
 
