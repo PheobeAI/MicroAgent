@@ -1,6 +1,7 @@
 # core/model.py
+import re
 from abc import ABC, abstractmethod
-from typing import Any
+from typing import Any, List, Optional
 
 from core.config import ModelConfig
 
@@ -10,9 +11,103 @@ except ImportError:
     Llama = None  # type: ignore
 
 try:
-    from smolagents import LlamaCppModel
+    from smolagents.models import (
+        Model,
+        ChatMessage,
+        ChatMessageToolCall,
+        ChatMessageToolCallFunction,
+        MessageRole,
+    )
 except ImportError:
-    LlamaCppModel = None  # type: ignore
+    Model = object  # type: ignore
+    ChatMessage = None  # type: ignore
+    ChatMessageToolCall = None  # type: ignore
+    ChatMessageToolCallFunction = None  # type: ignore
+    MessageRole = None  # type: ignore
+
+# Gemma tool-call format:
+# <|tool_call>call:TOOL_NAME{key:<|"|>value<|"|>, ...}<tool_call|>
+_GEMMA_TOOL_CALL_RE = re.compile(
+    r'<\|tool_call\>call:(\w+)\{(.*?)\}<tool_call\|>', re.DOTALL
+)
+_GEMMA_KV_RE = re.compile(r'(\w+):<\|"\|>(.*?)<\|"\|>', re.DOTALL)
+
+
+def _parse_gemma_tool_calls(content: str) -> Optional[List]:
+    """Detect and parse Gemma native tool-call format into ChatMessageToolCall list.
+
+    Returns None if the content contains no Gemma tool calls, so the caller
+    can fall back to letting smolagents parse JSON from the content instead.
+    """
+    matches = list(_GEMMA_TOOL_CALL_RE.finditer(content))
+    if not matches:
+        return None
+
+    tool_calls = []
+    for i, m in enumerate(matches):
+        name = m.group(1)
+        args_raw = m.group(2)
+
+        # Parse key:<|"|>value<|"|> pairs (handles colons/special chars in values)
+        arguments = {kv.group(1): kv.group(2) for kv in _GEMMA_KV_RE.finditer(args_raw)}
+
+        tool_calls.append(
+            ChatMessageToolCall(
+                id=f"call_{i}",
+                type="function",
+                function=ChatMessageToolCallFunction(name=name, arguments=arguments),
+            )
+        )
+
+    return tool_calls
+
+
+class _LlamaCppSmolagentsModel(Model):
+    """smolagents-compatible Model wrapper around a llama-cpp-python Llama instance."""
+
+    def __init__(self, llm: Any, max_new_tokens: int = 512) -> None:
+        super().__init__(flatten_messages_as_text=False, model_id="llama-cpp-local")
+        self._llm = llm
+        self._max_new_tokens = max_new_tokens
+
+    def generate(
+        self,
+        messages,
+        stop_sequences=None,
+        response_format=None,
+        tools_to_call_from=None,
+        **kwargs,
+    ) -> "ChatMessage":
+        # Pass tools_to_call_from to llama-cpp so it injects them using
+        # Gemma's native chat template. This is more compact than smolagents'
+        # JSON-based tool-description prompt and produces stable Gemma-format
+        # output (<|tool_call>call:NAME{...}<tool_call|>).
+        #
+        # Note: llama-cpp cannot parse Gemma's output back into tool_calls
+        # (always returns null). _parse_gemma_tool_calls() handles that below.
+        completion_kwargs = self._prepare_completion_kwargs(
+            messages=messages,
+            stop_sequences=stop_sequences,
+            response_format=response_format,
+            tools_to_call_from=tools_to_call_from,
+        )
+        completion_kwargs["max_tokens"] = self._max_new_tokens
+
+        response = self._llm.create_chat_completion(**completion_kwargs)
+
+        msg = response["choices"][0]["message"]
+        content = msg.get("content") or ""
+
+        # llama-cpp fails to parse Gemma's native tool format into tool_calls,
+        # so we parse it ourselves from the raw content.
+        tool_calls = _parse_gemma_tool_calls(content)
+
+        return ChatMessage(
+            role=MessageRole(msg["role"]),
+            content=None if tool_calls else content,
+            tool_calls=tool_calls,
+            raw=response,
+        )
 
 
 class ModelBackend(ABC):
@@ -52,4 +147,4 @@ class LlamaCppBackend(ModelBackend):
     def to_smolagents_model(self) -> Any:
         if self._llm is None:
             raise RuntimeError("Model has not been loaded. Call load() first.")
-        return LlamaCppModel(self._llm, max_new_tokens=self._config.max_tokens)
+        return _LlamaCppSmolagentsModel(self._llm, max_new_tokens=self._config.max_tokens)

@@ -1,7 +1,7 @@
 # tests/test_model.py
 from unittest.mock import MagicMock, patch
 from core.config import ModelConfig
-from core.model import LlamaCppBackend
+from core.model import LlamaCppBackend, _LlamaCppSmolagentsModel, _parse_gemma_tool_calls
 
 
 def test_load_calls_llama_with_correct_params():
@@ -31,11 +31,10 @@ def test_to_smolagents_model_returns_wrapped_model():
         backend = LlamaCppBackend(config)
         backend.load()
 
-    with patch("core.model.LlamaCppModel") as mock_wrapper:
-        mock_wrapper.return_value = MagicMock()
-        result = backend.to_smolagents_model()
-        mock_wrapper.assert_called_once_with(mock_instance, max_new_tokens=config.max_tokens)
-        assert result is mock_wrapper.return_value
+    result = backend.to_smolagents_model()
+    assert isinstance(result, _LlamaCppSmolagentsModel)
+    assert result._llm is mock_instance
+    assert result._max_new_tokens == config.max_tokens
 
 
 def test_get_memory_usage_returns_float():
@@ -45,3 +44,38 @@ def test_get_memory_usage_returns_float():
         mock_proc.return_value.memory_info.return_value.rss = 2 * 1024 ** 3
         usage = backend.get_memory_usage_gb()
     assert abs(usage - 2.0) < 0.01
+
+
+def test_parse_gemma_tool_calls_no_args():
+    content = '<|tool_call>call:system_info{}<tool_call|><|tool_response><eos>'
+    calls = _parse_gemma_tool_calls(content)
+    assert calls is not None and len(calls) == 1
+    assert calls[0].function.name == "system_info"
+    assert calls[0].function.arguments == {}
+
+
+def test_parse_gemma_tool_calls_with_string_arg():
+    content = '<|tool_call>call:web_search{query:<|"|>Python 最新版本<|"|>}<tool_call|>'
+    calls = _parse_gemma_tool_calls(content)
+    assert calls is not None and len(calls) == 1
+    assert calls[0].function.name == "web_search"
+    assert calls[0].function.arguments == {"query": "Python 最新版本"}
+
+
+def test_parse_gemma_tool_calls_multi_arg():
+    content = '<|tool_call>call:find_files{path:<|"|>.<|"|>, pattern:<|"|>*.py<|"|>}<tool_call|>'
+    calls = _parse_gemma_tool_calls(content)
+    assert calls is not None and len(calls) == 1
+    assert calls[0].function.arguments == {"path": ".", "pattern": "*.py"}
+
+
+def test_parse_gemma_tool_calls_value_with_colon():
+    content = '<|tool_call>call:web_search{query:<|"|>https://example.com/foo:bar<|"|>}<tool_call|>'
+    calls = _parse_gemma_tool_calls(content)
+    assert calls[0].function.arguments == {"query": "https://example.com/foo:bar"}
+
+
+def test_parse_gemma_tool_calls_returns_none_for_json():
+    # Standard JSON format should NOT be parsed by this function
+    content = 'Action:\n{"name": "system_info"}'
+    assert _parse_gemma_tool_calls(content) is None

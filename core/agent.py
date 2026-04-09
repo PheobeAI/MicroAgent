@@ -30,6 +30,7 @@ def _verbosity(verbose: bool) -> Any:
 _THINK_INSTRUCTIONS = (
     "每次回复都必须调用一个工具。"
     "如果需要思考或推理，请调用 think(thought=\"...\") 工具。"
+    "当你已经得出最终答案时，必须调用 final_answer(answer=\"...\") 工具来提交结果。"
     "禁止输出不带工具调用的纯文本，否则系统将报错并重试。"
 )
 
