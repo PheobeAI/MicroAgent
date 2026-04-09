@@ -42,6 +42,10 @@ if /i "%MODE%"=="release" (
 ) else (
     pip install nuitka
 )
+if errorlevel 1 (
+    echo [build-variant] ERROR: Nuitka install failed
+    exit /b 1
+)
 
 :: Common Nuitka flags shared by both modes
 set NUITKA_FLAGS=^
@@ -55,7 +59,7 @@ set NUITKA_FLAGS=^
   --include-package=ddgs ^
   --include-package=tavily ^
   --output-filename=%EXE_NAME% ^
-  --output-dir="%BUILD_DIR%" ^
+  --output-dir=%BUILD_DIR% ^
   --assume-yes-for-downloads ^
   --lto=no ^
   --nofollow-import-to=colorama.win32 ^
@@ -75,8 +79,12 @@ if errorlevel 1 (
 :: Stage distribution artifacts
 if /i "%MODE%"=="release" (
     copy "%BUILD_DIR%\%EXE_NAME%" "%DIST_DIR%\%EXE_NAME%"
+    if errorlevel 1 (
+        echo [build-variant] ERROR: Failed to copy exe to dist
+        exit /b 1
+    )
 ) else (
-    xcopy /e /i /y "%BUILD_DIR%\main.dist" "%DIST_DIR%"
+    xcopy /e /i /y "%BUILD_DIR%\main.dist" "%DIST_DIR%\"
 )
 copy config.yaml "%DIST_DIR%\config.yaml" 2>nul
 copy README.txt "%DIST_DIR%\README.txt" 2>nul
