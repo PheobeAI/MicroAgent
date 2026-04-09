@@ -12,7 +12,7 @@ if not errorlevel 1 (
     exit /b 0
 )
 
-wmic path win32_VideoController get Caption 2>nul | findstr /i "AMD Radeon" >nul
+powershell -NoProfile -Command "Get-CimInstance Win32_VideoController | Select-Object -ExpandProperty Caption" 2>nul | findstr /i "AMD Radeon" >nul
 if not errorlevel 1 (
     set DETECTED_GPU=vulkan
     echo [detect-gpu] AMD Radeon GPU detected ^(vulkan^)
