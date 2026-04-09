@@ -29,12 +29,19 @@ jobs:
         with:
           python-version: '3.12'
 
+      - name: Install CUDA Toolkit
+        uses: Jimver/cuda-toolkit@v0.2.23
+        with:
+          cuda: '12.4.0'
+          method: 'network'
+          sub-packages: '["nvcc", "cudart-dev", "cublas-dev"]'
+
       - name: Cache pip
         uses: actions/cache@v4
         with:
           path: ~\AppData\Local\pip\Cache
-          key: pip-cuda-${{ hashFiles('requirements-base.txt') }}
-          restore-keys: pip-cuda-
+          key: pip-cuda-src-${{ hashFiles('requirements-base.txt') }}
+          restore-keys: pip-cuda-src-
 
       - name: Cache Nuitka
         uses: actions/cache@v4
