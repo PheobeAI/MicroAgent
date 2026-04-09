@@ -1,6 +1,6 @@
 # tools/web_search.py
 try:
-    from duckduckgo_search import DDGS
+    from ddgs import DDGS
 except ImportError:
     DDGS = None  # type: ignore
 

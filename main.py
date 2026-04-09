@@ -27,8 +27,14 @@ def main() -> None:
     # ── 3. Load model ─────────────────────────────────────────────────────────
     model_path = config.model.path
     console.print(f"[bold]正在加载模型:[/] {model_path} ...")
-    t0 = time.perf_counter()
 
+    # Set up file logging before model load so llama.cpp's C-level stderr
+    # (fd 2) is redirected to the log file and stays off the terminal.
+    from ui.logger import setup as setup_logging
+    log_file = setup_logging(config.runtime.log_level)
+    console.print(f"[dim]日志写入: {log_file}[/]")
+
+    t0 = time.perf_counter()
     from core.model import LlamaCppBackend
     backend = LlamaCppBackend(config.model)
     try:

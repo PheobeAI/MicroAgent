@@ -1,6 +1,6 @@
 # tools/think.py
+import sys
 from tools.base import MicroTool
-from ui.console import console
 
 
 class ThinkTool(MicroTool):
@@ -20,5 +20,11 @@ class ThinkTool(MicroTool):
 
     def forward(self, thought: str) -> str:
         if self._show_thinking:
-            console.print(f"[dim]💭 {thought}[/dim]")
+            # Write directly to the original terminal stdout (sys.__stdout__),
+            # bypassing Rich's Live/status machinery which may buffer or suppress
+            # console.print() calls while the spinner is active.
+            out = getattr(sys, "__stdout__", None)
+            if out is not None:
+                out.write(f"\033[2m💭 {thought}\033[0m\n")
+                out.flush()
         return ""

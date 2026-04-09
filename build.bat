@@ -45,6 +45,8 @@ if "%MODE%"=="release" (
     --assume-yes-for-downloads ^
     --lto=no ^
     --nofollow-import-to=colorama.win32 ^
+    --nofollow-import-to=starlette ^
+    --nofollow-import-to=starlette_context ^
     main.py
 ) else (
   python -m nuitka ^
@@ -63,6 +65,8 @@ if "%MODE%"=="release" (
     --assume-yes-for-downloads ^
     --lto=no ^
     --nofollow-import-to=colorama.win32 ^
+    --nofollow-import-to=starlette ^
+    --nofollow-import-to=starlette_context ^
     main.py
 )
 

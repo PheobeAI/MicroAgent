@@ -20,7 +20,7 @@ def run_cli(agent: AgentRunner, config: AppConfig, tools: List[Any]) -> None:
     _print_header(tools)
     while True:
         try:
-            user_input = Prompt.ask("[bold cyan]>[/]").strip()
+            user_input = Prompt.ask("[bold cyan]>[/]", console=console).strip()
         except (KeyboardInterrupt, EOFError):
             console.print("\n[yellow]再见！[/]")
             break
