@@ -61,6 +61,14 @@ def load_config(config_path: Optional[Path] = None) -> AppConfig:
     if config_path.exists():
         with open(config_path, "r", encoding="utf-8") as f:
             data = yaml.safe_load(f) or {}
-        return AppConfig(**data)
+        config = AppConfig(**data)
+    else:
+        config = AppConfig()
 
-    return AppConfig()
+    # Resolve relative model path against the config file's directory so the
+    # exe works regardless of the working directory it is launched from.
+    model_path = Path(config.model.path)
+    if not model_path.is_absolute():
+        config.model.path = str((config_path.parent / model_path).resolve())
+
+    return config
