@@ -25,8 +25,10 @@ if "%VARIANT%"=="" (
 
 echo [install-deps] Installing llama-cpp-python ^(%VARIANT%^)...
 
+:: Set CUDA default BEFORE the if block — %VAR% expands at block-parse time in cmd.exe
+if "%LLAMA_CUDA_VERSION%"=="" set LLAMA_CUDA_VERSION=cu124
+
 if /i "%VARIANT%"=="cuda" (
-    if "%LLAMA_CUDA_VERSION%"=="" set LLAMA_CUDA_VERSION=cu124
     echo [install-deps] CUDA wheel: %LLAMA_CUDA_VERSION%
     pip install "llama-cpp-python>=0.2.90" ^
         --extra-index-url "https://abetlen.github.io/llama-cpp-python/whl/%LLAMA_CUDA_VERSION%"
