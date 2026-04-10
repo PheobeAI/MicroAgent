@@ -33,14 +33,13 @@ jobs:
         uses: Jimver/cuda-toolkit@v0.2.23
         with:
           cuda: '12.6.0'
-          method: 'network'
-          sub-packages: '["nvcc", "cudart_dev", "cublas_dev"]'
+          method: 'local'
 
       - name: Cache pip
         uses: actions/cache@v4
         with:
           path: ~\AppData\Local\pip\Cache
-          key: pip-cuda-src-cu126-${{ hashFiles('requirements-base.txt') }}
+          key: pip-cuda-src-${{ hashFiles('requirements-base.txt') }}-v2
           restore-keys: pip-cuda-src-
 
       - name: Cache Nuitka
