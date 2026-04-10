@@ -6,15 +6,20 @@
 |---|---|---|
 | Python | 3.10+ | 运行时与构建 |
 | Git | 任意 | 版本控制 |
-| VS 2022 Build Tools | 17.x（含 C++ 工作负载） | Vulkan 变体编译 llama-cpp-python |
-| CMake | 3.20+ | Vulkan 变体构建系统 |
+| VS 2022 Build Tools | 17.x（含 C++ 工作负载） | CUDA / Vulkan 变体编译 llama-cpp-python |
+| CMake | 3.20+ | CUDA / Vulkan 变体构建系统 |
+| CUDA Toolkit | 12.x / 13.x | **仅 CUDA 变体**：提供 nvcc 编译器 |
+| Ninja | 任意 | **仅 CUDA 变体**：替代 VS MSBuild generator（`install-deps.bat` 自动用 pip 安装） |
 | winget | 内置于 Windows 11 | 自动安装 Vulkan SDK |
 
 下载链接：
 - VS 2022 Build Tools：https://visualstudio.microsoft.com/downloads/#build-tools-for-visual-studio-2022
 - CMake：https://cmake.org/download/（勾选 "Add CMake to system PATH"）
+- CUDA Toolkit：https://developer.nvidia.com/cuda-downloads
 
-> **注：** CUDA 变体无需安装 CUDA Toolkit——使用官方预编译 wheel，任何 Windows 机器均可安装。
+> **注（CUDA 变体）：** llama-cpp-python 预编译 CUDA wheel 最新版本为 0.3.4，不支持 Gemma 4 等新架构。
+> `install-deps.bat cuda` 从源码编译（sdist），需要 CUDA Toolkit + VS 2022 + Ninja。
+> `install-deps.bat` 会自动检测 VS 2022 路径并调用 `vcvarsall.bat x64`；Ninja 不存在时自动 `pip install ninja`。
 
 ---
 
