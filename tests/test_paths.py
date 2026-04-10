@@ -124,3 +124,58 @@ def test_bootstrap_copy_failure_falls_back_to_default(tmp_path, monkeypatch):
     data = yaml.safe_load(dest.read_text(encoding="utf-8"))
     assert "model" in data
     assert "agent" in data
+
+
+def test_find_config_prefers_user_dir(tmp_path, monkeypatch):
+    """USER_DIR/config.yaml 存在时优先返回"""
+    import core.paths as paths_module
+    user_dir = tmp_path / "MicroAgent"
+    user_dir.mkdir(parents=True)
+    user_config = user_dir / "config.yaml"
+    user_config.write_text("# user config\n", encoding="utf-8")
+    monkeypatch.setattr(paths_module, "USER_DIR", user_dir)
+
+    # exe_dir 也有 config（确保 user_dir 优先）
+    exe_dir = tmp_path / "exe"
+    exe_dir.mkdir()
+    (exe_dir / "config.yaml").write_text("# exe config\n", encoding="utf-8")
+    monkeypatch.setattr(paths_module, "get_exe_dir", lambda: exe_dir)
+
+    from core.paths import find_config
+    result = find_config()
+    assert result == user_config
+
+
+def test_find_config_falls_back_to_exe_dir(tmp_path, monkeypatch):
+    """USER_DIR 无 config 时 fallback 到 exe_dir"""
+    import core.paths as paths_module
+    user_dir = tmp_path / "MicroAgent"  # 不创建 config.yaml
+    monkeypatch.setattr(paths_module, "USER_DIR", user_dir)
+
+    exe_dir = tmp_path / "exe"
+    exe_dir.mkdir()
+    (exe_dir / "config.yaml").write_text("# exe config\n", encoding="utf-8")
+    monkeypatch.setattr(paths_module, "get_exe_dir", lambda: exe_dir)
+
+    from core.paths import find_config
+    result = find_config()
+    assert result == exe_dir / "config.yaml"
+
+
+def test_find_config_bootstraps_when_neither_exists(tmp_path, monkeypatch):
+    """两处均无 config 时触发 bootstrap，返回 USER_DIR/config.yaml"""
+    import core.paths as paths_module
+    user_dir = tmp_path / "MicroAgent"
+    monkeypatch.setattr(paths_module, "USER_DIR", user_dir)
+
+    exe_dir = tmp_path / "exe"
+    exe_dir.mkdir()  # 不放 config.yaml
+    monkeypatch.setattr(paths_module, "get_exe_dir", lambda: exe_dir)
+
+    from core.paths import find_config
+    result = find_config()
+
+    assert result == user_dir / "config.yaml"
+    assert result.exists()
+    # 确认子目录也被创建
+    assert (user_dir / "models").is_dir()
