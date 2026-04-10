@@ -6,14 +6,9 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
+from core.paths import log_dir
+
 _ANSI_RE = re.compile(r'\x1b\[[0-9;]*[mGKHF]')
-
-
-def _log_dir() -> Path:
-    base = os.environ.get("LOCALAPPDATA") or str(Path.home() / "AppData" / "Local")
-    d = Path(base) / "PheobeAI" / "MicroAgent" / "logs"
-    d.mkdir(parents=True, exist_ok=True)
-    return d
 
 
 class _FileStream:
@@ -49,8 +44,7 @@ def setup(log_level: str = "info") -> Path:
 
     Returns the log file path.
     """
-    log_dir = _log_dir()
-    log_file = log_dir / f"microagent_{datetime.now():%Y-%m-%d}.log"
+    log_file = log_dir() / f"microagent_{datetime.now():%Y-%m-%d}.log"
 
     level = getattr(logging, log_level.upper(), logging.INFO)
 
