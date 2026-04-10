@@ -17,9 +17,12 @@
 - CMake：https://cmake.org/download/（勾选 "Add CMake to system PATH"）
 - CUDA Toolkit：https://developer.nvidia.com/cuda-downloads
 
-> **注（CUDA 变体）：** llama-cpp-python 预编译 CUDA wheel 最新版本为 0.3.4，不支持 Gemma 4 等新架构。
+> **注（CUDA 变体）：** llama-cpp-python 预编译 CUDA wheel（abetlen 索引）最新 Windows 版本为 0.3.4，不支持 Gemma 4 等新架构。
 > `install-deps.bat cuda` 从源码编译（sdist），需要 CUDA Toolkit + VS 2022 + Ninja。
 > `install-deps.bat` 会自动检测 VS 2022 路径并调用 `vcvarsall.bat x64`；Ninja 不存在时自动 `pip install ninja`。
+>
+> **CI 说明：** GitHub Actions CUDA 构建使用 `Jimver/cuda-toolkit` + `method: 'local'`（全量安装工具链，不指定 sub-packages）。
+> 网络安装器的组件包名在 Windows Server 2025 上不可靠（指定单个组件会导致退出码 `0xE0E00019`），因此改用本地安装方式。
 
 ---
 

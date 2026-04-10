@@ -81,4 +81,6 @@ User Input (CLI) → main.py → AgentRunner → LlamaCppBackend (Gemma-4) → T
 4. Add a feature flag under `tools:` in `config.yaml`
 
 ### CUDA Build Notes
-llama-cpp-python is compiled **from source** for CUDA (not a pre-built wheel) because Gemma-4's architecture requires recent llama.cpp changes not yet in published wheels. Requires: CUDA Toolkit, VS 2022 Build Tools, Ninja. See `buildscripts/install-deps.bat` for the exact pip install invocation with `--index-url` flags that prevent PyPI from overriding with a CPU wheel.
+llama-cpp-python is compiled **from source** for CUDA because pre-built Windows CUDA wheels on the abetlen index only go up to v0.3.4 and don't support the gemma4 architecture. `install-deps.bat cuda` downloads the sdist via `pip download --no-binary :all: --no-deps`, then builds with `CMAKE_ARGS=-DGGML_CUDA=on -G Ninja`. Requires: CUDA Toolkit, VS 2022 Build Tools, Ninja (auto-installed via pip if absent).
+
+**CI note**: The GitHub Actions CUDA job uses `Jimver/cuda-toolkit` with `method: 'local'` (full toolkit download, no `sub-packages` filter). The network installer's sub-package naming is unreliable on Windows Server 2025 — specifying individual packages causes exit code `0xE0E00019`.
