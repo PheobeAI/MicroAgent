@@ -63,3 +63,64 @@ def test_bootstrap_writes_default_when_no_template(tmp_path, monkeypatch):
     data = yaml.safe_load(dest.read_text(encoding="utf-8"))
     assert "model" in data
     assert "agent" in data
+
+
+def test_bootstrap_does_not_overwrite_existing_config(tmp_path, monkeypatch):
+    """config.yaml 已存在时不覆盖（幂等性）"""
+    import core.paths as paths_module
+    user_dir = tmp_path / "MicroAgent"
+    monkeypatch.setattr(paths_module, "USER_DIR", user_dir)
+
+    # 预先创建 config.yaml（含哨兵内容）
+    for sub in ("models", "memory", "logs", "skills"):
+        (user_dir / sub).mkdir(parents=True, exist_ok=True)
+    sentinel = "# sentinel content\n"
+    (user_dir / "config.yaml").write_text(sentinel, encoding="utf-8")
+
+    from core.paths import bootstrap_user_dir
+    bootstrap_user_dir()
+
+    assert (user_dir / "config.yaml").read_text(encoding="utf-8") == sentinel
+
+
+def test_bootstrap_nonexistent_template_falls_back_to_default(tmp_path, monkeypatch):
+    """template 路径不存在时写入内置默认配置"""
+    import yaml
+    import core.paths as paths_module
+    user_dir = tmp_path / "MicroAgent"
+    monkeypatch.setattr(paths_module, "USER_DIR", user_dir)
+
+    from core.paths import bootstrap_user_dir
+    bootstrap_user_dir(template=tmp_path / "nonexistent.yaml")
+
+    dest = user_dir / "config.yaml"
+    assert dest.exists()
+    data = yaml.safe_load(dest.read_text(encoding="utf-8"))
+    assert "model" in data
+    assert "agent" in data
+
+
+def test_bootstrap_copy_failure_falls_back_to_default(tmp_path, monkeypatch):
+    """shutil.copy 失败时降级写入内置默认配置"""
+    import yaml
+    import core.paths as paths_module
+    import core.paths
+    user_dir = tmp_path / "MicroAgent"
+    monkeypatch.setattr(paths_module, "USER_DIR", user_dir)
+
+    def raise_oserror(src, dst):
+        raise OSError("copy failed")
+
+    monkeypatch.setattr(core.paths.shutil, "copy", raise_oserror)
+
+    template = tmp_path / "config.yaml"
+    template.write_text("model:\n  path: test.gguf\n", encoding="utf-8")
+
+    from core.paths import bootstrap_user_dir
+    bootstrap_user_dir(template=template)
+
+    dest = user_dir / "config.yaml"
+    assert dest.exists()
+    data = yaml.safe_load(dest.read_text(encoding="utf-8"))
+    assert "model" in data
+    assert "agent" in data
