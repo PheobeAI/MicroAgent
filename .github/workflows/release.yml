@@ -34,7 +34,7 @@ jobs:
         with:
           cuda: '12.4.0'
           method: 'network'
-          sub-packages: '["nvcc", "cudart-dev", "cublas-dev"]'
+          sub-packages: '["nvcc", "cudart_dev", "cublas_dev"]'
 
       - name: Cache pip
         uses: actions/cache@v4
