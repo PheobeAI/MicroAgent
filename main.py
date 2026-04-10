@@ -10,15 +10,11 @@ __version__ = "0.1.0"
 
 def main() -> None:
     # ── 1. Load config ────────────────────────────────────────────────────────
+    from core.paths import find_config, resolve_relative
     from core.config import load_config
-    config_path = Path(sys.argv[0]).parent / "config.yaml"
+    config_path = find_config()
     config = load_config(config_path)
-
-    if not config_path.exists():
-        console.print(
-            "[yellow]提示：未找到 config.yaml，使用默认配置。"
-            "可在 exe 同级目录创建 config.yaml 进行自定义。[/]"
-        )
+    config.model.path = str(resolve_relative(config_path.parent, config.model.path))
 
     # ── 2. Load tools ─────────────────────────────────────────────────────────
     from tools.registry import ToolRegistry
