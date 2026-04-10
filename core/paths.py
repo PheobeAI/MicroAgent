@@ -85,6 +85,9 @@ def find_config() -> Path:
         return exe_config
 
     bootstrap_user_dir(template=exe_config)
+    from ui.console import console
+    console.print(f"[dim]首次运行：已在 {USER_DIR} 创建默认配置目录。"
+                  f"请将 .gguf 模型文件放入 {USER_DIR / 'models'} 后再次运行。[/]")
     return USER_DIR / "config.yaml"
 
 

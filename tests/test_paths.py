@@ -179,3 +179,13 @@ def test_find_config_bootstraps_when_neither_exists(tmp_path, monkeypatch):
     assert result.exists()
     # 确认子目录也被创建
     assert (user_dir / "models").is_dir()
+
+
+def test_log_dir_creates_and_returns(tmp_path, monkeypatch):
+    """log_dir() 返回 USER_DIR/logs 并确保目录存在"""
+    import core.paths as paths_module
+    monkeypatch.setattr(paths_module, "USER_DIR", tmp_path / "MicroAgent")
+    from core.paths import log_dir
+    result = log_dir()
+    assert result.is_dir()
+    assert result.name == "logs"
