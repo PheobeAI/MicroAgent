@@ -1,6 +1,6 @@
 # core/config.py
 from pathlib import Path
-from typing import List, Literal, Optional
+from typing import List, Literal
 
 import yaml
 from pydantic import BaseModel, Field
@@ -10,8 +10,8 @@ class ModelConfig(BaseModel):
     path: str = "./models/gemma-4-e2b-instruct.gguf"
     n_gpu_layers: int = -1
     n_threads: int = 6
-    n_ctx: int = 4096
-    max_tokens: int = 512
+    n_ctx: int = 131072
+    max_tokens: int = 2048
 
 
 class AgentConfig(BaseModel):
@@ -53,22 +53,9 @@ class AppConfig(BaseModel):
     runtime: RuntimeConfig = Field(default_factory=RuntimeConfig)
 
 
-def load_config(config_path: Optional[Path] = None) -> AppConfig:
-    if config_path is None:
-        import sys
-        config_path = Path(sys.argv[0]).parent / "config.yaml"
-
+def load_config(config_path: Path) -> AppConfig:
     if config_path.exists():
         with open(config_path, "r", encoding="utf-8") as f:
             data = yaml.safe_load(f) or {}
-        config = AppConfig(**data)
-    else:
-        config = AppConfig()
-
-    # Resolve relative model path against the config file's directory so the
-    # exe works regardless of the working directory it is launched from.
-    model_path = Path(config.model.path)
-    if not model_path.is_absolute():
-        config.model.path = str((config_path.parent / model_path).resolve())
-
-    return config
+        return AppConfig(**data)
+    return AppConfig()

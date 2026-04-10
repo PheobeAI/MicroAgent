@@ -9,8 +9,8 @@ def test_defaults_when_file_missing():
     assert isinstance(config, AppConfig)
     assert config.model.n_threads == 6
     assert config.model.n_gpu_layers == -1
-    assert config.model.n_ctx == 4096
-    assert config.model.max_tokens == 512
+    assert config.model.n_ctx == 131072
+    assert config.model.max_tokens == 2048
     assert config.agent.mode == "tool_calling"
     assert config.agent.verbose is False
     assert config.agent.show_thinking is True
