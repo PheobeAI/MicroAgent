@@ -1,7 +1,6 @@
 # main.py
 import sys
 import time
-from pathlib import Path
 
 from ui.console import console
 
