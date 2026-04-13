@@ -164,12 +164,6 @@ class _LlamaCppSmolagentsModel(Model):
         )
         completion_kwargs["max_tokens"] = self._max_new_tokens
 
-        # Reset llama-cpp KV Cache before each call to prevent prefix-reuse
-        # contamination from previous conversations bleeding into the new prompt.
-        # smolagents resets its message list via reset=True in agent.run(), but
-        # llama-cpp independently caches KV state across calls.
-        self._llm.reset()
-
         response = self._llm.create_chat_completion(**completion_kwargs)
 
         msg = response["choices"][0]["message"]
@@ -236,9 +230,20 @@ class _LlamaCppSmolagentsModel(Model):
                 hybrid_calls = []
                 for i, hm in enumerate(hybrid_matches):
                     name = hm.group(1)
+                    raw_body = hm.group(2)
+                    args = None
+                    # First try strict JSON parse
                     try:
-                        args = _json.loads(hm.group(2))
+                        args = _json.loads(raw_body)
                     except _json.JSONDecodeError:
+                        # Fallback: model may output JS-style unquoted keys
+                        # e.g. {answer: "..."} → {"answer": "..."}
+                        fixed = re.sub(r'(\{|,)\s*(\w+)\s*:', r'\1 "\2":', raw_body)
+                        try:
+                            args = _json.loads(fixed)
+                        except _json.JSONDecodeError:
+                            _log.warning("Strategy 1.5: failed to parse body %r", raw_body[:100])
+                    if args is None:
                         continue
                     if not isinstance(args, dict):
                         args = {"input": str(args)}
@@ -305,6 +310,11 @@ class LlamaCppBackend(ModelBackend):
             n_gpu_layers=self._config.n_gpu_layers,
             n_threads=self._config.n_threads,
             n_ctx=self._config.n_ctx,
+            # Flash Attention is required for Gemma's SWA (Sliding Window Attention)
+            # architecture when n_ctx < n_ctx_train. Without it, llama.cpp pads the
+            # V cache to 512 tokens, causing the model to output <eos> when prompt
+            # exceeds that limit (empty content, completion_tokens=3).
+            flash_attn=True,
             verbose=False,
         )
 
