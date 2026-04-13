@@ -269,6 +269,46 @@ class _LlamaCppSmolagentsModel(Model):
         if tool_calls is None:
             tool_calls = _parse_json_tool_calls(content_for_parse)
 
+        # Strategy 2.5: Python-list format   [{'name': '...', 'arguments': {...}}]
+        # smolagents system prompt includes a "Calling tools:\n[{...}]" example that
+        # Gemma follows literally — using single-quote Python dicts instead of JSON.
+        # We convert it to JSON using ast.literal_eval which safely handles Python literals.
+        if tool_calls is None:
+            import ast as _ast
+            import json as _json2
+            # Find Python list literals in the content
+            _PY_LIST_RE = re.compile(r'\[\s*\{.*?\}\s*\]', re.DOTALL)
+            for lm in _PY_LIST_RE.finditer(content_for_parse):
+                try:
+                    py_obj = _ast.literal_eval(lm.group())
+                except (ValueError, SyntaxError):
+                    continue
+                if not isinstance(py_obj, list):
+                    continue
+                py_calls = []
+                for item in py_obj:
+                    if not isinstance(item, dict):
+                        continue
+                    name = item.get("name")
+                    if not name or not isinstance(name, str):
+                        continue
+                    args = item.get("arguments", {})
+                    if isinstance(args, str):
+                        args = {"answer": args} if name == "final_answer" else {"input": args}
+                    elif not isinstance(args, dict):
+                        args = {"input": str(args)}
+                    py_calls.append(
+                        ChatMessageToolCall(
+                            id=f"call_{len(py_calls)}",
+                            type="function",
+                            function=ChatMessageToolCallFunction(name=name, arguments=args),
+                        )
+                    )
+                if py_calls:
+                    _log.info("Parsed %d tool call(s) via Python-list format", len(py_calls))
+                    tool_calls = py_calls
+                    break
+
         # NOTE: No plain-text fallback (Strategy 3 removed).
         # If neither Gemma-native nor JSON tool calls are found, we return the
         # content as-is and let smolagents handle the error / retry naturally.
