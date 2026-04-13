@@ -105,6 +105,21 @@ class _LlamaCppSmolagentsModel(Model):
         # so we parse it ourselves from the raw content.
         tool_calls = _parse_gemma_tool_calls(content)
 
+        # Fallback: if the model output plain text (no Gemma tool-call tokens),
+        # synthesize a final_answer tool call so smolagents can return the result
+        # instead of retrying indefinitely with "does not contain any JSON blob".
+        if tool_calls is None and content.strip():
+            tool_calls = [
+                ChatMessageToolCall(
+                    id="call_0",
+                    type="function",
+                    function=ChatMessageToolCallFunction(
+                        name="final_answer",
+                        arguments={"answer": content.strip()},
+                    ),
+                )
+            ]
+
         return ChatMessage(
             role=MessageRole(msg["role"]),
             content=None if tool_calls else content,
@@ -146,6 +161,62 @@ class LlamaCppBackend(ModelBackend):
     def get_memory_usage_gb(self) -> float:
         import psutil
         return psutil.Process().memory_info().rss / (1024 ** 3)
+
+    def get_gpu_info(self) -> str:
+        """Return a short GPU/CPU backend label for the startup banner.
+
+        Only "CUDA", "Vulkan", "CPU" (etc.) are shown on the console.
+        The full llama_print_system_info() output is written to the log file
+        at DEBUG level so detailed hardware info is always available there.
+        """
+        import logging
+        log = logging.getLogger(__name__)
+
+        if self._llm is None:
+            return "未加载"
+
+        try:
+            from llama_cpp import llama_cpp as _lib
+
+            # Dump full system info to the log file (DEBUG level).
+            try:
+                info_bytes = _lib.llama_print_system_info()
+                full_info = info_bytes.decode("utf-8", errors="replace") if info_bytes else ""
+            except Exception:
+                full_info = ""
+            if full_info:
+                log.info("llama.cpp system info: %s", full_info.strip())
+
+            # No GPU support compiled in → pure CPU.
+            if not _lib.llama_supports_gpu_offload():
+                return "CPU（llama-cpp-python 未编译 GPU 支持）"
+
+            # n_gpu_layers=0 means user explicitly chose CPU.
+            cfg_layers = self._config.n_gpu_layers
+            if cfg_layers == 0:
+                return "CPU（n_gpu_layers=0）"
+
+            # Detect backend from system info keywords.
+            info_upper = full_info.upper()
+            if "CUDA" in info_upper:
+                backend = "CUDA"
+            elif "VULKAN" in info_upper:
+                backend = "Vulkan"
+            elif "METAL" in info_upper:
+                backend = "Metal"
+            elif "ROCM" in info_upper:
+                backend = "ROCm"
+            else:
+                backend = "GPU"
+
+            layers_label = "全部层" if cfg_layers == -1 else f"{cfg_layers} 层"
+            return f"{backend}（{layers_label}）"
+
+        except Exception:
+            cfg_layers = self._config.n_gpu_layers
+            if cfg_layers == 0:
+                return "CPU（n_gpu_layers=0）"
+            return f"GPU（n_gpu_layers={cfg_layers}，无法确认设备）"
 
     def to_smolagents_model(self) -> Any:
         if self._llm is None:
