@@ -156,9 +156,15 @@ class _LlamaCppSmolagentsModel(Model):
         # prompt as text. The model outputs tool calls as inline text
         # (<|tool_call>call:NAME{...}<tool_call|>), which _parse_gemma_tool_calls
         # can match reliably.
+        # Do NOT pass stop_sequences to llama-cpp.
+        # smolagents passes ["Observation:", "Calling tools:"] as stop sequences.
+        # llama-cpp matches these against the prompt tail in some versions, causing
+        # the model to immediately output <eos> when the prompt ends with
+        # "Observations: ..." (tool results), which produces empty content and
+        # completion_tokens=3 on every step after the first tool call.
         completion_kwargs = self._prepare_completion_kwargs(
             messages=messages,
-            stop_sequences=stop_sequences,
+            stop_sequences=None,
             response_format=response_format,
             tools_to_call_from=None,
         )
