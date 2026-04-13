@@ -11,13 +11,16 @@ model:
   # 上下文长度（token 数）
   n_ctx: 131072
   # 单次最大生成 token 数
-  max_tokens: 512
+  # Gemma 模型会先输出 <|channel>thought...思考块，再输出实际回答或 tool call。
+  # 512 对于复杂问题完全不够（思考块本身就可能超过 1000 token）。
+  # 推荐 4096；如果显存充足可设到 8192。
+  max_tokens: 4096
 
 agent:
   # 运行模式：tool_calling（推荐）或 code（需要更强模型）
   mode: tool_calling
   # 是否显示 smolagents 内部调试日志（面向开发者，通常设为 false）
-  verbose: false
+  verbose: true
   # 是否将模型的推理思考内容展示给用户（默认开启，可设为 false 静默）
   show_thinking: true
 
@@ -46,7 +49,7 @@ runtime:
   log_level: info
   # console_verbose: 是否在控制台输出调试信息（smolagents 内部推理步骤等）
   # 仅影响终端显示，不影响日志文件内容
-  console_verbose: false
+  console_verbose: true
 
 memory:
   enabled: true

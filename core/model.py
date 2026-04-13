@@ -34,8 +34,13 @@ _GEMMA_KV_RE = re.compile(r'(\w+):<\|"\|>(.*?)<\|"\|>', re.DOTALL)
 
 # Gemma thinking/reasoning channel blocks:
 # <|channel>thought ... <channel|>
+# Also handles truncated blocks where <channel|> closing tag is missing.
 _GEMMA_THOUGHT_RE = re.compile(
     r'<\|channel\>thought(.*?)<channel\|>', re.DOTALL
+)
+# Truncated thought block: opened but never closed (model was cut off by max_tokens)
+_GEMMA_THOUGHT_OPEN_RE = re.compile(
+    r'<\|channel\>thought.*', re.DOTALL
 )
 
 # JSON object pattern (handles one level of nesting)
@@ -164,12 +169,26 @@ class _LlamaCppSmolagentsModel(Model):
         # Strip Gemma thought/reasoning channel blocks before parsing.
         # <|channel>thought ... <channel|> is the model's internal reasoning and
         # must not be surfaced to the user or treated as a tool call / final answer.
+        #
+        # Two cases:
+        #   1. Complete block: <|channel>thought ... <channel|>  → strip via regex
+        #   2. Truncated block: <|channel>thought ... (no closing tag, model was
+        #      cut off by max_tokens)  → strip everything from <|channel>thought onward
         thought_matches = list(_GEMMA_THOUGHT_RE.finditer(content))
         if thought_matches:
+            # Case 1: complete thought block(s)
             for tm in thought_matches:
                 _log.debug("LLM thought block (stripped): %s", tm.group(1)[:400].strip())
             content_for_parse = _GEMMA_THOUGHT_RE.sub("", content).strip()
             _log.info("LLM content after stripping thought blocks: %r", content_for_parse[:400])
+        elif _GEMMA_THOUGHT_OPEN_RE.search(content):
+            # Case 2: truncated thought block — model was cut off inside thought
+            _log.warning(
+                "LLM thought block was truncated (max_tokens too small). "
+                "Consider increasing max_tokens in config. Stripping partial thought."
+            )
+            content_for_parse = _GEMMA_THOUGHT_OPEN_RE.sub("", content).strip()
+            _log.info("LLM content after stripping truncated thought: %r", content_for_parse[:400])
         else:
             content_for_parse = content
 
