@@ -9,7 +9,7 @@ model:
   # CPU 推理线程数（建议 4-6，不影响系统其他任务）
   n_threads: 6
   # 上下文长度（token 数）
-  n_ctx: 4096
+  n_ctx: 131072
   # 单次最大生成 token 数
   max_tokens: 512
 
@@ -41,4 +41,35 @@ tools:
 runtime:
   # 系统提示语言（zh = 中文，en = 英文）
   language: zh
+  # log_level: 日志文件的记录级别，与控制台显示无关，默认 info
+  # 可选值：debug / info / warning / error
   log_level: info
+  # console_verbose: 是否在控制台输出调试信息（smolagents 内部推理步骤等）
+  # 仅影响终端显示，不影响日志文件内容
+  console_verbose: false
+
+memory:
+  enabled: true
+  # SQLite 路径（相对于本配置文件；main.py 通过 resolve_relative() 转绝对路径）
+  db_path: memory\microagent.db
+  # 上下文窗口大小（token 数），与 model.n_ctx 保持一致
+  context_window_tokens: 131072
+  # 自动压缩阈值：context 占用超过此比例时触发（步骤 3 生效）
+  compression_threshold: 0.80
+  # 压缩时保留最近 N 轮对话不压缩
+  keep_recent_turns: 6
+  # 压缩后保留的最小空余 token 数
+  post_compact_reserve: 40960
+  # 启动时注入 prefix 的相关历史条数（0 = 完全懒加载；步骤 4 生效）
+  max_episodes_in_prefix: 5
+  # 压缩摘要 prompt 的自定义指令（留空使用默认）
+  pre_compact_instructions: ""
+  # 工具输出超过此字符数时 offload（步骤 3 生效）
+  max_tool_output_chars: 8000
+  # 少于此轮数时跳过 LLM 摘要，直接存原文（步骤 3 生效）
+  min_turns_to_save: 3
+  retrieval:
+    bm25_weight: 0.5        # BM25 相关性权重 α（步骤 5 生效）
+    recency_weight: 0.3     # 时间衰减权重 β
+    importance_weight: 0.2  # 重要性权重 γ
+    decay_rate: 0.1         # 时间衰减率 λ（半衰期约 7 天）
