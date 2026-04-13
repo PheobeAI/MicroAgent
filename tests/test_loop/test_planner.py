@@ -105,3 +105,33 @@ def test_planner_native_kv_strips_eos():
     plan = planner.plan("任务")
     assert len(plan) == 1
     assert plan[0].tool == "web_search"
+
+
+def test_planner_json_steps_no_wrapper():
+    """第三种格式：steps 值是裸 JSON 列表（无 <|"|> 包裹）。"""
+    raw = (
+        '<|tool_call>call:plan{steps:[{'
+        '"tool": "web_search", '
+        '"args": {"query": "硬盘丢失数据找回方法"}'
+        '}]}<tool_call|><eos>'
+    )
+    planner = Planner(model=make_model(raw), tools=[MockSearchTool()], max_plan_steps=10)
+    plan = planner.plan("任务")
+    assert len(plan) == 1
+    assert plan[0].tool == "web_search"
+    assert plan[0].args == {"query": "硬盘丢失数据找回方法"}
+
+
+def test_planner_json_steps_multiple_no_wrapper():
+    """多步骤裸 JSON 格式。"""
+    raw = (
+        '<|tool_call>call:plan{steps:['
+        '{"tool": "web_search", "args": {"query": "A"}, "reason": "step1"},'
+        '{"tool": "web_search", "args": {"query": "B"}, "reason": "step2"}'
+        ']}<tool_call|>'
+    )
+    planner = Planner(model=make_model(raw), tools=[MockSearchTool()], max_plan_steps=10)
+    plan = planner.plan("任务")
+    assert len(plan) == 2
+    assert plan[0].args["query"] == "A"
+    assert plan[1].args["query"] == "B"

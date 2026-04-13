@@ -105,27 +105,40 @@ class Planner:
         return steps if steps else None
 
     def _parse_native_steps(self, content: str) -> list[Step] | None:
-        """Parse steps from Gemma native KV nesting format.
+        """Parse steps from Gemma native KV nesting or bare JSON list format.
 
-        Handles: steps:[{tool:<|"|>NAME<|"|>,args:{k:<|"|>v<|"|>},reason:<|"|>R<|"|>}]
+        Handles three formats:
+          A. steps:[{tool:<|"|>NAME<|"|>, args:{k:<|"|>v<|"|>}, reason:<|"|>R<|"|>}]
+             (Gemma native KV nesting — no JSON wrapping)
+          B. steps:[{"tool": "NAME", "args": {"k": "v"}, "reason": "R"}]
+             (bare JSON list embedded in the tool call body)
         """
-        # Find the steps:[...] section
-        steps_section = re.search(r'steps:\[(.*)\]', content, re.DOTALL)
+        # Find the steps:[...] section — greedy to capture all content
+        steps_section = re.search(r'steps:\s*(\[.*\])', content, re.DOTALL)
         if not steps_section:
             return None
 
-        body = steps_section.group(1)
+        body_raw = steps_section.group(1)
+
+        # Path B: try bare JSON list first (clean, fast)
+        # Clean up stray <eos> tokens inside the JSON body before parsing
+        body_clean = re.sub(r'\n?<eos>', '', body_raw).strip()
+        try:
+            steps_data = json.loads(body_clean)
+            if isinstance(steps_data, list) and steps_data:
+                return self._steps_from_json(steps_data)
+        except (json.JSONDecodeError, TypeError):
+            pass
+
+        # Path A: Gemma native KV nesting
         steps = []
+        for block_m in self._STEP_BLOCK_RE.finditer(body_raw):
+            block = block_m.group(0)
 
-        for block_m in self._STEP_BLOCK_RE.finditer(body):
-            block = block_m.group(0)  # includes braces: {tool:...,args:{...},reason:...}
-
-            # Extract tool name and reason from top-level KVs
             top_kvs = {m.group(1): m.group(2) for m in self._STEP_KV_RE.finditer(block)}
             tool_name = top_kvs.get("tool", "")
             reason = top_kvs.get("reason", "")
 
-            # Extract args from the nested args:{...} block
             args: dict = {}
             args_m = self._ARGS_BLOCK_RE.search(block)
             if args_m:
