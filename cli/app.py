@@ -69,7 +69,10 @@ def _run_task(agent: AgentRunner, prompt: str, verbose: bool) -> None:
             with console.status("[bold]思考中...[/]"):
                 result = agent.run(prompt)
         console.print(Rule())
-        console.print(f"[bold green]结果:[/] {result}")
+        if result is None:
+            console.print("[yellow]未能生成回答（模型未调用 final_answer）。请重新提问，或尝试更具体的问题。[/]")
+        else:
+            console.print(f"[bold green]结果:[/] {result}")
         console.print(Rule())
     except Exception as e:
         console.print(f"[red]错误: {e}[/]")
