@@ -19,6 +19,7 @@ def test_load_calls_llama_with_correct_params():
             n_gpu_layers=-1,
             n_threads=6,
             n_ctx=4096,
+            flash_attn=True,
             verbose=False,
         )
 

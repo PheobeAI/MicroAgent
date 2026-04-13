@@ -2,20 +2,20 @@
 from pathlib import Path
 from typing import List
 
-from tools.base import MicroTool
+from tools.base import Tool, ToolParam
 from core.config import FileManagerConfig
 
 
 # ─── Read-only tools ────────────────────────────────────────────────────────
 
 
-class ListDirectoryTool(MicroTool):
+class ListDirectoryTool(Tool):
     name = "list_directory"
     description = "列出指定目录下的文件和子目录。"
-    inputs = {"path": {"type": "string", "description": "要列出内容的目录路径"}}
-    output_type = "string"
+    parameters = [ToolParam("path", "str", "要列出内容的目录路径")]
 
-    def forward(self, path: str) -> str:
+    def __call__(self, **kwargs) -> str:
+        path = kwargs.get("path", "")
         p = Path(path)
         if not p.exists():
             return f"错误：路径不存在: {path}"
@@ -28,13 +28,13 @@ class ListDirectoryTool(MicroTool):
         return f"{path} ({len(items)} 项):\n" + "\n".join(lines)
 
 
-class ReadFileTool(MicroTool):
+class ReadFileTool(Tool):
     name = "read_file"
     description = "读取文本文件的完整内容并返回。"
-    inputs = {"path": {"type": "string", "description": "要读取的文件路径"}}
-    output_type = "string"
+    parameters = [ToolParam("path", "str", "要读取的文件路径")]
 
-    def forward(self, path: str) -> str:
+    def __call__(self, **kwargs) -> str:
+        path = kwargs.get("path", "")
         p = Path(path)
         if not p.exists():
             return f"错误：文件不存在: {path}"
@@ -46,13 +46,13 @@ class ReadFileTool(MicroTool):
             return f"错误：无法读取文件: {e}"
 
 
-class GetFileInfoTool(MicroTool):
+class GetFileInfoTool(Tool):
     name = "get_file_info"
     description = "获取文件或目录的元信息，包括大小、修改时间、类型。"
-    inputs = {"path": {"type": "string", "description": "要查询的文件或目录路径"}}
-    output_type = "string"
+    parameters = [ToolParam("path", "str", "要查询的文件或目录路径")]
 
-    def forward(self, path: str) -> str:
+    def __call__(self, **kwargs) -> str:
+        path = kwargs.get("path", "")
         p = Path(path)
         if not p.exists():
             return f"错误：路径不存在: {path}"
@@ -68,16 +68,17 @@ class GetFileInfoTool(MicroTool):
         )
 
 
-class FindFilesTool(MicroTool):
+class FindFilesTool(Tool):
     name = "find_files"
     description = "在指定目录下递归搜索匹配文件名模式的文件（支持通配符，如 *.py）。"
-    inputs = {
-        "directory": {"type": "string", "description": "搜索的根目录"},
-        "pattern": {"type": "string", "description": "文件名匹配模式，如 *.txt 或 *.py"},
-    }
-    output_type = "string"
+    parameters = [
+        ToolParam("directory", "str", "搜索的根目录"),
+        ToolParam("pattern", "str", "文件名匹配模式，如 *.txt 或 *.py"),
+    ]
 
-    def forward(self, directory: str, pattern: str) -> str:
+    def __call__(self, **kwargs) -> str:
+        directory = kwargs.get("directory", "")
+        pattern = kwargs.get("pattern", "*")
         p = Path(directory)
         if not p.exists():
             return f"错误：目录不存在: {directory}"
@@ -94,11 +95,10 @@ class FindFilesTool(MicroTool):
 # ─── Destructive tools ────────────────────────────────────────────────────────
 
 
-class _DestructiveTool(MicroTool):
+class _DestructiveTool(Tool):
     """Mixin for tools that check allowed_dirs before operating."""
 
     def __init__(self, allowed_dirs: List[str]) -> None:
-        super().__init__()
         self._allowed = [Path(d).resolve() for d in allowed_dirs] if allowed_dirs else []
 
     def _check_allowed(self, path: Path) -> bool:
@@ -116,13 +116,14 @@ class _DestructiveTool(MicroTool):
 class WriteFileTool(_DestructiveTool):
     name = "write_file"
     description = "将内容写入文件（会覆盖已有内容）。需要 allow_destructive: true。"
-    inputs = {
-        "path": {"type": "string", "description": "目标文件路径"},
-        "content": {"type": "string", "description": "要写入的文本内容"},
-    }
-    output_type = "string"
+    parameters = [
+        ToolParam("path", "str", "目标文件路径"),
+        ToolParam("content", "str", "要写入的文本内容"),
+    ]
 
-    def forward(self, path: str, content: str) -> str:
+    def __call__(self, **kwargs) -> str:
+        path = kwargs.get("path", "")
+        content = kwargs.get("content", "")
         p = Path(path)
         if err := self._guard(p):
             return err
@@ -137,13 +138,14 @@ class WriteFileTool(_DestructiveTool):
 class AppendFileTool(_DestructiveTool):
     name = "append_file"
     description = "向已有文件末尾追加内容。需要 allow_destructive: true。"
-    inputs = {
-        "path": {"type": "string", "description": "目标文件路径"},
-        "content": {"type": "string", "description": "要追加的文本内容"},
-    }
-    output_type = "string"
+    parameters = [
+        ToolParam("path", "str", "目标文件路径"),
+        ToolParam("content", "str", "要追加的文本内容"),
+    ]
 
-    def forward(self, path: str, content: str) -> str:
+    def __call__(self, **kwargs) -> str:
+        path = kwargs.get("path", "")
+        content = kwargs.get("content", "")
         p = Path(path)
         if err := self._guard(p):
             return err
@@ -158,10 +160,10 @@ class AppendFileTool(_DestructiveTool):
 class CreateDirectoryTool(_DestructiveTool):
     name = "create_directory"
     description = "创建目录（包含所有中间目录，等效于 mkdir -p）。需要 allow_destructive: true。"
-    inputs = {"path": {"type": "string", "description": "要创建的目录路径"}}
-    output_type = "string"
+    parameters = [ToolParam("path", "str", "要创建的目录路径")]
 
-    def forward(self, path: str) -> str:
+    def __call__(self, **kwargs) -> str:
+        path = kwargs.get("path", "")
         p = Path(path)
         if err := self._guard(p):
             return err
@@ -172,13 +174,14 @@ class CreateDirectoryTool(_DestructiveTool):
 class MoveFileTool(_DestructiveTool):
     name = "move_file"
     description = "移动或重命名文件。需要 allow_destructive: true。"
-    inputs = {
-        "src": {"type": "string", "description": "源文件路径"},
-        "dst": {"type": "string", "description": "目标路径"},
-    }
-    output_type = "string"
+    parameters = [
+        ToolParam("src", "str", "源文件路径"),
+        ToolParam("dst", "str", "目标路径"),
+    ]
 
-    def forward(self, src: str, dst: str) -> str:
+    def __call__(self, **kwargs) -> str:
+        src = kwargs.get("src", "")
+        dst = kwargs.get("dst", "")
         s, d = Path(src), Path(dst)
         if err := self._guard(s):
             return err
@@ -193,10 +196,10 @@ class MoveFileTool(_DestructiveTool):
 class DeleteFileTool(_DestructiveTool):
     name = "delete_file"
     description = "删除单个文件（不删除目录）。需要 allow_destructive: true。"
-    inputs = {"path": {"type": "string", "description": "要删除的文件路径"}}
-    output_type = "string"
+    parameters = [ToolParam("path", "str", "要删除的文件路径")]
 
-    def forward(self, path: str) -> str:
+    def __call__(self, **kwargs) -> str:
+        path = kwargs.get("path", "")
         p = Path(path)
         if err := self._guard(p):
             return err
@@ -211,8 +214,8 @@ class DeleteFileTool(_DestructiveTool):
 # ─── Factory ─────────────────────────────────────────────────────────────────
 
 
-def create_file_manager_tools(config: FileManagerConfig) -> List[MicroTool]:
-    read_tools: List[MicroTool] = [
+def create_file_manager_tools(config: FileManagerConfig) -> List[Tool]:
+    read_tools: List[Tool] = [
         ListDirectoryTool(),
         ReadFileTool(),
         GetFileInfoTool(),
@@ -221,7 +224,7 @@ def create_file_manager_tools(config: FileManagerConfig) -> List[MicroTool]:
     if not config.allow_destructive:
         return read_tools
 
-    destructive_tools: List[MicroTool] = [
+    destructive_tools: List[Tool] = [
         WriteFileTool(config.allowed_dirs),
         AppendFileTool(config.allowed_dirs),
         CreateDirectoryTool(config.allowed_dirs),

@@ -1,8 +1,7 @@
 # tools/registry.py
 from typing import List
 
-from smolagents import Tool
-
+from tools.base import Tool
 from core.config import ToolsConfig
 
 

@@ -1,15 +1,14 @@
 import psutil
 
-from tools.base import MicroTool
+from tools.base import Tool, ToolParam
 
 
-class SystemInfoTool(MicroTool):
+class SystemInfoTool(Tool):
     name = "system_info"
     description = "获取当前系统状态，包括CPU使用率、内存占用和电池状态。无需输入参数。"
-    inputs = {}
-    output_type = "string"
+    parameters: list = []
 
-    def forward(self) -> str:
+    def __call__(self, **kwargs) -> str:
         cpu = psutil.cpu_percent(interval=0.5)
         mem = psutil.virtual_memory()
         battery = psutil.sensors_battery()

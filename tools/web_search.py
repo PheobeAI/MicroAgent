@@ -9,21 +9,20 @@ try:
 except ImportError:
     TavilyClient = None  # type: ignore
 
-from tools.base import MicroTool
+from tools.base import Tool, ToolParam
 
 
-class WebSearchTool(MicroTool):
+class WebSearchTool(Tool):
     name = "web_search"
     description = "搜索网络并返回相关结果摘要。提供搜索关键词或完整问题。"
-    inputs = {"query": {"type": "string", "description": "搜索关键词或问题"}}
-    output_type = "string"
+    parameters = [ToolParam("query", "str", "搜索关键词或问题")]
 
     def __init__(self, tavily_api_key: str = "") -> None:
-        super().__init__()
         self._use_tavily = bool(tavily_api_key)
         self._tavily_api_key = tavily_api_key
 
-    def forward(self, query: str) -> str:
+    def __call__(self, **kwargs) -> str:
+        query = kwargs.get("query", "")
         if self._use_tavily:
             return self._search_tavily(query)
         return self._search_duckduckgo(query)

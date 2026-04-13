@@ -17,7 +17,7 @@ def test_system_info_returns_string():
         patch("psutil.virtual_memory", return_value=mock_mem),
         patch("psutil.sensors_battery", return_value=mock_battery),
     ):
-        result = tool.forward()
+        result = tool()
 
     assert "15.0%" in result
     assert "4.0GB" in result
@@ -38,6 +38,6 @@ def test_system_info_no_battery():
         patch("psutil.virtual_memory", return_value=mock_mem),
         patch("psutil.sensors_battery", return_value=None),
     ):
-        result = tool.forward()
+        result = tool()
 
     assert "未检测到" in result
