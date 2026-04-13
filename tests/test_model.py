@@ -1,7 +1,7 @@
 # tests/test_model.py
 from unittest.mock import MagicMock, patch
 from core.config import ModelConfig
-from core.model import LlamaCppBackend, _LlamaCppSmolagentsModel, _parse_gemma_tool_calls
+from core.model import LlamaCppBackend, _parse_gemma_tool_calls, ChatMessageToolCall, ChatMessageToolCallFunction
 
 
 def test_load_calls_llama_with_correct_params():
@@ -22,20 +22,6 @@ def test_load_calls_llama_with_correct_params():
             flash_attn=True,
             verbose=False,
         )
-
-
-def test_to_smolagents_model_returns_wrapped_model():
-    config = ModelConfig()
-    with patch("core.model.Llama") as mock_llama:
-        mock_instance = MagicMock()
-        mock_llama.return_value = mock_instance
-        backend = LlamaCppBackend(config)
-        backend.load()
-
-    result = backend.to_smolagents_model()
-    assert isinstance(result, _LlamaCppSmolagentsModel)
-    assert result._llm is mock_instance
-    assert result._max_new_tokens == config.max_tokens
 
 
 def test_get_memory_usage_returns_float():

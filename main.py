@@ -55,8 +55,7 @@ def main() -> None:
     if config.runtime.console_verbose:
         config.agent.verbose = True
     from core.agent import create_agent_runner
-    smolagents_model = backend.to_smolagents_model(show_thinking=config.agent.show_thinking)
-    agent = create_agent_runner(config.agent, smolagents_model, tools)
+    agent = create_agent_runner(config.agent, backend, tools)
 
     # ── 5. Start CLI ──────────────────────────────────────────────────────────
     from cli.app import run_cli

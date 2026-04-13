@@ -109,42 +109,32 @@ class LlamaCppBackend(ModelBackend):
             layers = self._config.n_gpu_layers
             return f"GPU（n_gpu_layers={layers}，无法确认设备）"
 
-    # ------------------------------------------------------------------
-    # Backward-compat shim — used by tests only, will be removed in Task 9
-    # ------------------------------------------------------------------
-    def to_smolagents_model(self, show_thinking: bool = True) -> "_LlamaCppSmolagentsModel":
-        """Deprecated: wraps the backend in a smolagents-compatible model."""
-        return _LlamaCppSmolagentsModel(
-            llm=self._llm,
-            max_new_tokens=self._config.max_tokens,
-            show_thinking=show_thinking,
-        )
-
-
 # ---------------------------------------------------------------------------
-# Legacy smolagents wrapper — DEPRECATED, will be removed in Task 9
+# Stub for backward-compat in existing tests — no smolagents dependency
 # ---------------------------------------------------------------------------
 
-try:
-    from smolagents.models import (
-        Model,
-        ChatMessage,
-        ChatMessageToolCall,
-        ChatMessageToolCallFunction,
-        MessageRole,
-    )
-except ImportError:
-    Model = object  # type: ignore
-    ChatMessage = None  # type: ignore
-    ChatMessageToolCall = None  # type: ignore
-    ChatMessageToolCallFunction = None  # type: ignore
-    MessageRole = None  # type: ignore
+class _ToolCallFunction:
+    def __init__(self, name: str, arguments: dict) -> None:
+        self.name = name
+        self.arguments = arguments
+
+
+class _ToolCall:
+    def __init__(self, id: str, type: str, function: _ToolCallFunction) -> None:
+        self.id = id
+        self.type = type
+        self.function = function
+
+
+# Keep old name aliases so test_model.py imports still work
+ChatMessageToolCallFunction = _ToolCallFunction
+ChatMessageToolCall = _ToolCall
 
 
 def _parse_gemma_tool_calls(content: str) -> Optional[List]:
-    """Parse Gemma native tool-call format into ChatMessageToolCall list.
+    """Parse Gemma native tool-call format.
 
-    Returns None if content contains no Gemma tool calls.
+    Returns list of _ToolCall or None if no Gemma tool calls found.
     """
     matches = list(_GEMMA_TOOL_CALL_RE.finditer(content))
     if not matches:
@@ -156,61 +146,10 @@ def _parse_gemma_tool_calls(content: str) -> Optional[List]:
         args_raw = m.group(2)
         arguments = {kv.group(1): kv.group(2) for kv in _GEMMA_KV_RE.finditer(args_raw)}
         tool_calls.append(
-            ChatMessageToolCall(
+            _ToolCall(
                 id=f"call_{i}",
                 type="function",
-                function=ChatMessageToolCallFunction(name=name, arguments=arguments),
+                function=_ToolCallFunction(name=name, arguments=arguments),
             )
         )
     return tool_calls
-
-
-class _LlamaCppSmolagentsModel(Model):
-    """Deprecated smolagents-compatible wrapper. Use LlamaCppBackend.generate() instead."""
-
-    def __init__(self, llm: Any, max_new_tokens: int = 512, show_thinking: bool = True) -> None:
-        super().__init__(flatten_messages_as_text=False, model_id="llama-cpp-local")
-        self._llm = llm
-        self._max_new_tokens = max_new_tokens
-        self._show_thinking = show_thinking
-
-    def generate(self, messages, stop_sequences=None, response_format=None,
-                 tools_to_call_from=None, **kwargs) -> "ChatMessage":
-        completion_kwargs = self._prepare_completion_kwargs(
-            messages=messages,
-            stop_sequences=None,
-            response_format=response_format,
-            tools_to_call_from=None,
-        )
-        completion_kwargs["max_tokens"] = self._max_new_tokens
-        response = self._llm.create_chat_completion(**completion_kwargs)
-        msg = response["choices"][0]["message"]
-        content = msg.get("content") or ""
-        _log.info("LLM raw output: %r", content[:600] if content else "<empty>")
-
-        # Strip thought blocks before processing
-        thought_complete = re.compile(r'<\|channel\>thought(.*?)<channel\|>', re.DOTALL)
-        thought_open = re.compile(r'<\|channel\>thought.*', re.DOTALL)
-        thoughts = list(thought_complete.finditer(content))
-        if thoughts:
-            if self._show_thinking:
-                import sys
-                for t in thoughts:
-                    sys.stdout.write(f"\033[2m💭 {t.group(1).strip()}\033[0m\n")
-                sys.stdout.flush()
-            content = thought_complete.sub("", content).strip()
-        else:
-            open_m = thought_open.search(content)
-            if open_m:
-                if self._show_thinking:
-                    import sys
-                    sys.stdout.write(f"\033[2m💭 {open_m.group(0)[len('<|channel>thought'):].strip()}\033[0m\n")
-                    sys.stdout.flush()
-                content = thought_open.sub("", content).strip()
-
-        tool_calls = _parse_gemma_tool_calls(content)
-        return ChatMessage(
-            role=MessageRole.ASSISTANT,
-            content=content if not tool_calls else None,
-            tool_calls=tool_calls,
-        )
