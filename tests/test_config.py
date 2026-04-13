@@ -45,3 +45,34 @@ def test_allowed_dirs_parsed(tmp_path):
     config = load_config(cfg)
     assert config.tools.file_manager.allow_destructive is True
     assert config.tools.file_manager.allowed_dirs == ["/tmp"]
+
+
+def test_memory_config_defaults():
+    config = load_config(Path("/nonexistent/config.yaml"))
+    m = config.memory
+    assert m.enabled is True
+    assert m.db_path == r"memory\microagent.db"
+    assert m.context_window_tokens == 131072
+    assert m.compression_threshold == 0.80
+    assert m.keep_recent_turns == 6
+    assert m.post_compact_reserve == 40960
+    assert m.max_episodes_in_prefix == 5
+    assert m.pre_compact_instructions == ""
+    assert m.max_tool_output_chars == 8000
+    assert m.min_turns_to_save == 3
+    assert m.retrieval.bm25_weight == 0.5
+    assert m.retrieval.recency_weight == 0.3
+    assert m.retrieval.importance_weight == 0.2
+    assert m.retrieval.decay_rate == 0.1
+
+
+def test_memory_config_yaml_override(tmp_path):
+    cfg = tmp_path / "config.yaml"
+    cfg.write_text(
+        "memory:\n  enabled: false\n  max_episodes_in_prefix: 0\n",
+        encoding="utf-8",
+    )
+    config = load_config(cfg)
+    assert config.memory.enabled is False
+    assert config.memory.max_episodes_in_prefix == 0
+    assert config.memory.compression_threshold == 0.80  # default preserved

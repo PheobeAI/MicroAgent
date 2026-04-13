@@ -41,9 +41,33 @@ class ToolsConfig(BaseModel):
     system_info: SystemInfoConfig = Field(default_factory=SystemInfoConfig)
 
 
+class RetrievalConfig(BaseModel):
+    bm25_weight: float = 0.5
+    recency_weight: float = 0.3
+    importance_weight: float = 0.2
+    decay_rate: float = 0.1
+
+
+class MemoryConfig(BaseModel):
+    enabled: bool = True
+    db_path: str = r"memory\microagent.db"
+    context_window_tokens: int = 131072
+    compression_threshold: float = 0.80
+    keep_recent_turns: int = 6
+    post_compact_reserve: int = 40960
+    max_episodes_in_prefix: int = 5
+    pre_compact_instructions: str = ""
+    max_tool_output_chars: int = 8000
+    min_turns_to_save: int = 3
+    retrieval: RetrievalConfig = Field(default_factory=RetrievalConfig)
+
+
 class RuntimeConfig(BaseModel):
     language: str = "zh"
+    # log_level: 日志文件的记录级别，默认 info，可选 debug/info/warning/error
     log_level: str = "info"
+    # console_verbose: 是否在控制台打印调试信息（smolagents 内部步骤等），默认关闭
+    console_verbose: bool = False
 
 
 class AppConfig(BaseModel):
@@ -51,6 +75,7 @@ class AppConfig(BaseModel):
     agent: AgentConfig = Field(default_factory=AgentConfig)
     tools: ToolsConfig = Field(default_factory=ToolsConfig)
     runtime: RuntimeConfig = Field(default_factory=RuntimeConfig)
+    memory: MemoryConfig = Field(default_factory=MemoryConfig)
 
 
 def load_config(config_path: Path) -> AppConfig:
