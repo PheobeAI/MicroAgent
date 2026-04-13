@@ -31,7 +31,12 @@ def run_cli(agent: AgentRunner, config: AppConfig, tools: List[Any]) -> None:
         if user_input.startswith("/"):
             _handle_command(user_input, tools, config)
         else:
-            _run_task(agent, user_input, verbose=config.agent.verbose)
+            _run_task(
+                agent,
+                user_input,
+                verbose=config.agent.verbose,
+                show_thinking=config.agent.show_thinking,
+            )
 
 
 def _print_header(tools: List[Any]) -> None:
@@ -61,9 +66,10 @@ def _handle_command(cmd: str, tools: List[Any], config: AppConfig) -> None:
         console.print(f"[red]未知命令: {cmd}[/]。输入 /help 查看可用命令。")
 
 
-def _run_task(agent: AgentRunner, prompt: str, verbose: bool) -> None:
+def _run_task(agent: AgentRunner, prompt: str, verbose: bool, show_thinking: bool = True) -> None:
     try:
-        if verbose:
+        if verbose or show_thinking:
+            # show_thinking 时不用 spinner — spinner 会遮盖 sys.stdout 写出的思考内容
             result = agent.run(prompt)
         else:
             with console.status("[bold]思考中...[/]"):
