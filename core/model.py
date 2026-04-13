@@ -46,6 +46,13 @@ _GEMMA_THOUGHT_OPEN_RE = re.compile(
 # JSON object pattern (handles one level of nesting)
 _JSON_OBJ_RE = re.compile(r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}', re.DOTALL)
 
+# Gemma hybrid format: <|tool_call>call:TOOLNAME{...json body...}
+# The model sometimes uses the Gemma prefix but with a JSON body instead of
+# the native <|"|>key<|"|> KV pairs, and omits the <tool_call|> closing tag.
+_GEMMA_HYBRID_RE = re.compile(
+    r'<\|tool_call\>call:(\w+)(\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\})', re.DOTALL
+)
+
 
 def _parse_json_tool_calls(content: str) -> Optional[List]:
     """Parse smolagents JSON-format tool calls from content.
@@ -210,8 +217,35 @@ class _LlamaCppSmolagentsModel(Model):
         else:
             content_for_parse = content
 
-        # Strategy 1: Gemma native format  <|tool_call>call:NAME{...}<tool_call|>
+        # Strategy 1: Gemma native format  <|tool_call>call:NAME{key:<|"|>val<|"|>}<tool_call|>
         tool_calls = _parse_gemma_tool_calls(content_for_parse)
+
+        # Strategy 1.5: Gemma hybrid format  <|tool_call>call:NAME{...json body...}
+        # The model uses the Gemma prefix but JSON body without <tool_call|> closing tag.
+        # e.g.  <|tool_call>call:final_answer{"answer": "..."}
+        if tool_calls is None:
+            import json as _json
+            hybrid_matches = list(_GEMMA_HYBRID_RE.finditer(content_for_parse))
+            if hybrid_matches:
+                hybrid_calls = []
+                for i, hm in enumerate(hybrid_matches):
+                    name = hm.group(1)
+                    try:
+                        args = _json.loads(hm.group(2))
+                    except _json.JSONDecodeError:
+                        continue
+                    if not isinstance(args, dict):
+                        args = {"input": str(args)}
+                    hybrid_calls.append(
+                        ChatMessageToolCall(
+                            id=f"call_{i}",
+                            type="function",
+                            function=ChatMessageToolCallFunction(name=name, arguments=args),
+                        )
+                    )
+                if hybrid_calls:
+                    _log.info("Parsed %d tool call(s) via Gemma hybrid format", len(hybrid_calls))
+                    tool_calls = hybrid_calls
 
         # Strategy 2: smolagents JSON format  {"name": "...", "arguments": ...}
         # (the model follows smolagents' system prompt instructions and outputs JSON)
