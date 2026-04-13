@@ -34,8 +34,12 @@ class _FileStream:
         return False
 
 
-def setup(log_level: str = "info") -> Path:
+def setup(log_level: str = "debug") -> Path:
     """Set up file-based logging.
+
+    ``log_level`` controls only what is written to the log *file* — it has no
+    effect on what the console displays.  The console verbosity is governed
+    separately by ``runtime.console_verbose`` / ``agent.verbose`` in config.
 
     Must be called AFTER ui.console is imported (so our Rich Console already
     captured the real stdout) but BEFORE the smolagents agent is created (so
@@ -46,16 +50,20 @@ def setup(log_level: str = "info") -> Path:
     """
     log_file = log_dir() / f"microagent_{datetime.now():%Y-%m-%d}.log"
 
-    level = getattr(logging, log_level.upper(), logging.INFO)
+    # Resolve the requested file log level; fall back to DEBUG so we never
+    # silently discard diagnostic information.
+    file_level = getattr(logging, log_level.upper(), logging.DEBUG)
 
     handler = logging.FileHandler(log_file, encoding="utf-8")
-    handler.setLevel(logging.DEBUG)
+    handler.setLevel(file_level)
     handler.setFormatter(logging.Formatter(
         "%(asctime)s [%(levelname)-8s] %(name)s: %(message)s",
         datefmt="%H:%M:%S",
     ))
     root = logging.getLogger()
-    root.setLevel(level)
+    # Root logger must be at least as permissive as the file handler so that
+    # records aren't dropped before they reach the handler.
+    root.setLevel(file_level)
     root.addHandler(handler)
 
     stream = _FileStream(log_file)

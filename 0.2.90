@@ -1,0 +1,43 @@
+Collecting llama-cpp-python
+  Using cached llama_cpp_python-0.3.20-py3-none-win_amd64.whl
+Collecting typing-extensions>=4.5.0 (from llama-cpp-python)
+  Using cached typing_extensions-4.15.0-py3-none-any.whl.metadata (3.3 kB)
+Collecting numpy>=1.20.0 (from llama-cpp-python)
+  Using cached numpy-2.4.4-cp312-cp312-win_amd64.whl.metadata (6.6 kB)
+Collecting diskcache>=5.6.1 (from llama-cpp-python)
+  Using cached diskcache-5.6.3-py3-none-any.whl.metadata (20 kB)
+Collecting jinja2>=2.11.3 (from llama-cpp-python)
+  Using cached jinja2-3.1.6-py3-none-any.whl.metadata (2.9 kB)
+Collecting MarkupSafe>=2.0 (from jinja2>=2.11.3->llama-cpp-python)
+  Using cached markupsafe-3.0.3-cp312-cp312-win_amd64.whl.metadata (2.8 kB)
+Using cached diskcache-5.6.3-py3-none-any.whl (45 kB)
+Using cached jinja2-3.1.6-py3-none-any.whl (134 kB)
+Using cached numpy-2.4.4-cp312-cp312-win_amd64.whl (12.3 MB)
+Using cached typing_extensions-4.15.0-py3-none-any.whl (44 kB)
+Using cached markupsafe-3.0.3-cp312-cp312-win_amd64.whl (15 kB)
+Installing collected packages: typing-extensions, numpy, MarkupSafe, diskcache, jinja2, llama-cpp-python
+  Attempting uninstall: typing-extensions
+    Found existing installation: typing_extensions 4.15.0
+    Uninstalling typing_extensions-4.15.0:
+      Successfully uninstalled typing_extensions-4.15.0
+  Attempting uninstall: numpy
+    Found existing installation: numpy 2.4.4
+    Uninstalling numpy-2.4.4:
+      Successfully uninstalled numpy-2.4.4
+  Attempting uninstall: MarkupSafe
+    Found existing installation: MarkupSafe 3.0.3
+    Uninstalling MarkupSafe-3.0.3:
+      Successfully uninstalled MarkupSafe-3.0.3
+  Attempting uninstall: diskcache
+    Found existing installation: diskcache 5.6.3
+    Uninstalling diskcache-5.6.3:
+      Successfully uninstalled diskcache-5.6.3
+  Attempting uninstall: jinja2
+    Found existing installation: Jinja2 3.1.6
+    Uninstalling Jinja2-3.1.6:
+      Successfully uninstalled Jinja2-3.1.6
+  Attempting uninstall: llama-cpp-python
+    Found existing installation: llama_cpp_python 0.3.4
+    Uninstalling llama_cpp_python-0.3.4:
+      Successfully uninstalled llama_cpp_python-0.3.4
+Successfully installed MarkupSafe-3.0.3 diskcache-5.6.3 jinja2-3.1.6 llama-cpp-python-0.3.20 numpy-2.4.4 typing-extensions-4.15.0
