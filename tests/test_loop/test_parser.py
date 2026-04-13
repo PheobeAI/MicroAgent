@@ -24,6 +24,15 @@ def test_parse_no_match():
     assert result is None
 
 
+def test_parse_strips_eos_tokens():
+    """模型输出末尾可能带多个 <eos> token，应当被 strip。"""
+    content = '<|tool_call>call:web_search{query:<|"|>中东局势<|"|>}<tool_call|><eos><eos><eos>'
+    result = parse_gemma_tool_call(content)
+    assert result is not None
+    assert result["name"] == "web_search"
+    assert result["args"] == {"query": "中东局势"}
+
+
 def test_parse_plan_with_json_value():
     steps_json = '[{"tool": "web_search", "args": {"query": "test"}, "reason": "搜索"}]'
     content = f'<|tool_call>call:plan{{steps:<|"|>{steps_json}<|"|>}}<tool_call|>'

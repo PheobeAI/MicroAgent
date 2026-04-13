@@ -73,3 +73,35 @@ def test_planner_raises_after_two_failures():
     planner = Planner(model=model, tools=[MockSearchTool()], max_plan_steps=10)
     with pytest.raises(RuntimeError, match="无法生成执行计划"):
         planner.plan("任务")
+
+
+def test_planner_native_kv_steps_format():
+    """模型实际输出：steps 值也是 Gemma native KV 嵌套格式，而不是 JSON 字符串。"""
+    raw = (
+        '<|tool_call>call:plan{steps:[{'
+        'tool:<|"|>web_search<|"|>,'
+        'args:{query:<|"|>中东局势进展<|"|>},'
+        'reason:<|"|>需要搜索最新信息<|"|>'
+        '}]}<tool_call|>'
+    )
+    planner = Planner(model=make_model(raw), tools=[MockSearchTool()], max_plan_steps=10)
+    plan = planner.plan("任务")
+    assert len(plan) == 1
+    assert plan[0].tool == "web_search"
+    assert plan[0].args == {"query": "中东局势进展"}
+    assert "搜索" in plan[0].reason
+
+
+def test_planner_native_kv_strips_eos():
+    """模型输出末尾有 <eos> token，应当正常解析。"""
+    raw = (
+        '<|tool_call>call:plan{steps:[{'
+        'tool:<|"|>web_search<|"|>,'
+        'args:{query:<|"|>test<|"|>},'
+        'reason:<|"|>r<|"|>'
+        '}]}<tool_call|><eos><eos><eos>'
+    )
+    planner = Planner(model=make_model(raw), tools=[MockSearchTool()], max_plan_steps=10)
+    plan = planner.plan("任务")
+    assert len(plan) == 1
+    assert plan[0].tool == "web_search"
