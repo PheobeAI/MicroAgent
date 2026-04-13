@@ -122,6 +122,22 @@ def test_planner_json_steps_no_wrapper():
     assert plan[0].args == {"query": "硬盘丢失数据找回方法"}
 
 
+def test_planner_mixed_native_tool_json_args():
+    """第四种格式：tool 用 native KV，args 用 JSON 对象字面量（无 <|"|> 包裹）。"""
+    raw = (
+        '<|tool_call>call:plan{steps:['
+        '{tool:<|"|>web_search<|"|>,args:{"query":"磁盘被清空了怎么办"}},'
+        '{tool:<|"|>web_search<|"|>,args:{"query":"文件恢复方法"}}'
+        ']}<tool_call|><eos>'
+    )
+    planner = Planner(model=make_model(raw), tools=[MockSearchTool()], max_plan_steps=10)
+    plan = planner.plan("任务")
+    assert len(plan) == 2
+    assert plan[0].tool == "web_search"
+    assert plan[0].args == {"query": "磁盘被清空了怎么办"}
+    assert plan[1].args == {"query": "文件恢复方法"}
+
+
 def test_planner_json_steps_multiple_no_wrapper():
     """多步骤裸 JSON 格式。"""
     raw = (

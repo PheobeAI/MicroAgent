@@ -65,8 +65,10 @@ class Planner:
     _STEP_BLOCK_RE = re.compile(r'\{([^{}]*(?:\{[^{}]*\}[^{}]*)*)\}')
     # Regex to parse a single KV value: key:<|"|>value<|"|>
     _STEP_KV_RE = re.compile(r'(\w+):<\|"\|>(.*?)<\|"\|>', re.DOTALL)
-    # Regex to parse nested args block: args:{key:<|"|>value<|"|>, ...}
+    # Regex to parse nested args block: args:{key:<|"|>value<|"|>, ...}  (native KV)
     _ARGS_BLOCK_RE = re.compile(r'args:\{([^}]*)\}', re.DOTALL)
+    # Regex to parse args as JSON object: args:{"key": "value", ...}
+    _ARGS_JSON_RE = re.compile(r'args:(\{[^{}]*\})', re.DOTALL)
 
     def _parse(self, content: str) -> list[Step] | None:
         # Strip trailing <eos> tokens emitted by some tokenizers
@@ -140,9 +142,28 @@ class Planner:
             reason = top_kvs.get("reason", "")
 
             args: dict = {}
+            # Extract args: try native KV format first, then JSON object
             args_m = self._ARGS_BLOCK_RE.search(block)
             if args_m:
-                args = {m.group(1): m.group(2) for m in self._STEP_KV_RE.finditer(args_m.group(1))}
+                native_args = {m.group(1): m.group(2) for m in self._STEP_KV_RE.finditer(args_m.group(1))}
+                if native_args:
+                    args = native_args
+                else:
+                    # args block found but no native KV pairs → try JSON object
+                    json_m = self._ARGS_JSON_RE.search(block)
+                    if json_m:
+                        try:
+                            args = json.loads(json_m.group(1))
+                        except (json.JSONDecodeError, TypeError):
+                            pass
+            else:
+                # No native args block found → try JSON object directly
+                json_m = self._ARGS_JSON_RE.search(block)
+                if json_m:
+                    try:
+                        args = json.loads(json_m.group(1))
+                    except (json.JSONDecodeError, TypeError):
+                        pass
 
             if tool_name:
                 steps.append(Step(tool=tool_name, args=args, reason=reason))
