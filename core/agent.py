@@ -27,9 +27,8 @@ def _verbosity(verbose: bool) -> Any:
     return LogLevel.DEBUG if verbose else LogLevel.ERROR
 
 
-_THINK_INSTRUCTIONS = (
+_INSTRUCTIONS = (
     "每次回复都必须调用一个工具。"
-    "如果需要思考或推理，请调用 think(thought=\"...\") 工具。"
     "当你已经得出最终答案时，必须调用 final_answer(answer=\"...\") 工具来提交结果。"
     "禁止输出不带工具调用的纯文本，否则系统将报错并重试。"
 )
@@ -45,13 +44,14 @@ class AgentRunner(ABC):
 
 class ToolCallingAgentRunner(AgentRunner):
     def __init__(self, model: Any, tools: List[Any], verbose: bool, show_thinking: bool) -> None:
-        from tools.think import ThinkTool
-        all_tools = [ThinkTool(show_thinking=show_thinking)] + list(tools)
+        # ThinkTool has been removed: Gemma uses its native <|channel>thought...<channel|>
+        # reasoning blocks for internal reasoning. The model wrapper (_LlamaCppSmolagentsModel)
+        # strips these blocks and optionally displays them based on show_thinking config.
         self._agent = ToolCallingAgent(
-            tools=all_tools,
+            tools=list(tools),
             model=model,
             verbosity_level=_verbosity(verbose),
-            instructions=_THINK_INSTRUCTIONS,
+            instructions=_INSTRUCTIONS,
         )
 
     def run(self, prompt: str) -> str:

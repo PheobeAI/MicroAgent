@@ -125,10 +125,11 @@ def _parse_gemma_tool_calls(content: str) -> Optional[List]:
 class _LlamaCppSmolagentsModel(Model):
     """smolagents-compatible Model wrapper around a llama-cpp-python Llama instance."""
 
-    def __init__(self, llm: Any, max_new_tokens: int = 512) -> None:
+    def __init__(self, llm: Any, max_new_tokens: int = 512, show_thinking: bool = True) -> None:
         super().__init__(flatten_messages_as_text=False, model_id="llama-cpp-local")
         self._llm = llm
         self._max_new_tokens = max_new_tokens
+        self._show_thinking = show_thinking
 
     def generate(
         self,
@@ -178,7 +179,14 @@ class _LlamaCppSmolagentsModel(Model):
         if thought_matches:
             # Case 1: complete thought block(s)
             for tm in thought_matches:
-                _log.debug("LLM thought block (stripped): %s", tm.group(1)[:400].strip())
+                thought_text = tm.group(1).strip()
+                _log.debug("LLM thought block (stripped): %s", thought_text[:400])
+                if self._show_thinking and thought_text:
+                    import sys as _sys
+                    out = getattr(_sys, "__stdout__", None)
+                    if out is not None:
+                        out.write(f"\033[2m💭 {thought_text}\033[0m\n")
+                        out.flush()
             content_for_parse = _GEMMA_THOUGHT_RE.sub("", content).strip()
             _log.info("LLM content after stripping thought blocks: %r", content_for_parse[:400])
         elif _GEMMA_THOUGHT_OPEN_RE.search(content):
@@ -187,6 +195,16 @@ class _LlamaCppSmolagentsModel(Model):
                 "LLM thought block was truncated (max_tokens too small). "
                 "Consider increasing max_tokens in config. Stripping partial thought."
             )
+            # Extract and optionally display the partial thought text
+            open_match = _GEMMA_THOUGHT_OPEN_RE.search(content)
+            if open_match and self._show_thinking:
+                partial = open_match.group(0).replace("<|channel>thought", "").strip()
+                if partial:
+                    import sys as _sys
+                    out = getattr(_sys, "__stdout__", None)
+                    if out is not None:
+                        out.write(f"\033[2m💭 [思考被截断] {partial}\033[0m\n")
+                        out.flush()
             content_for_parse = _GEMMA_THOUGHT_OPEN_RE.sub("", content).strip()
             _log.info("LLM content after stripping truncated thought: %r", content_for_parse[:400])
         else:
@@ -313,7 +331,11 @@ class LlamaCppBackend(ModelBackend):
                 return "CPU（n_gpu_layers=0）"
             return f"GPU（n_gpu_layers={cfg_layers}，无法确认设备）"
 
-    def to_smolagents_model(self) -> Any:
+    def to_smolagents_model(self, show_thinking: bool = True) -> Any:
         if self._llm is None:
             raise RuntimeError("Model has not been loaded. Call load() first.")
-        return _LlamaCppSmolagentsModel(self._llm, max_new_tokens=self._config.max_tokens)
+        return _LlamaCppSmolagentsModel(
+            self._llm,
+            max_new_tokens=self._config.max_tokens,
+            show_thinking=show_thinking,
+        )

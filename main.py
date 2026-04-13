@@ -41,15 +41,21 @@ def main() -> None:
 
     elapsed = time.perf_counter() - t0
     mem_gb = backend.get_memory_usage_gb()
+    gpu_info = backend.get_gpu_info()
     console.print(
         f"[green]模型加载完成[/] ({elapsed:.1f}s) | "
         f"内存占用: {mem_gb:.1f}GB | "
+        f"推理后端: {gpu_info} | "
         f"工具: {len(tools)} 个已启用"
     )
 
     # ── 4. Create agent ───────────────────────────────────────────────────────
+    # runtime.console_verbose overrides agent.verbose so users have one clear
+    # knob for "show debug output on console" without touching agent config.
+    if config.runtime.console_verbose:
+        config.agent.verbose = True
     from core.agent import create_agent_runner
-    smolagents_model = backend.to_smolagents_model()
+    smolagents_model = backend.to_smolagents_model(show_thinking=config.agent.show_thinking)
     agent = create_agent_runner(config.agent, smolagents_model, tools)
 
     # ── 5. Start CLI ──────────────────────────────────────────────────────────
