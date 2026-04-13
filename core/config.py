@@ -15,9 +15,11 @@ class ModelConfig(BaseModel):
 
 
 class AgentConfig(BaseModel):
-    mode: Literal["tool_calling", "code"] = "tool_calling"
+    mode: Literal["plan_execute"] = "plan_execute"
     verbose: bool = False
     show_thinking: bool = True
+    max_exec_rounds: int = 5
+    max_plan_steps: int = 10
 
 
 class WebSearchConfig(BaseModel):

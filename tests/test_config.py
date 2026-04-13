@@ -11,7 +11,7 @@ def test_defaults_when_file_missing():
     assert config.model.n_gpu_layers == -1
     assert config.model.n_ctx == 131072
     assert config.model.max_tokens == 2048
-    assert config.agent.mode == "tool_calling"
+    assert config.agent.mode == "plan_execute"
     assert config.agent.verbose is False
     assert config.agent.show_thinking is True
     assert config.tools.file_manager.allow_destructive is False

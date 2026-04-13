@@ -1,83 +1,92 @@
 # core/agent.py
+from __future__ import annotations
+import logging
 from abc import ABC, abstractmethod
-from typing import Any, List
+from typing import Any
 
 from core.config import AgentConfig
+from core.loop.planner import Planner
+from core.loop.executor import Executor
+from core.loop.synthesizer import Synthesizer
+from core.loop.types import SynthContext
 
-try:
-    from smolagents import ToolCallingAgent
-except ImportError:
-    ToolCallingAgent = None  # type: ignore
-
-try:
-    from smolagents import CodeAgent
-except ImportError:
-    CodeAgent = None  # type: ignore
-
-try:
-    from smolagents.monitoring import LogLevel
-except ImportError:
-    LogLevel = None  # type: ignore
-
-
-def _verbosity(verbose: bool) -> Any:
-    """Map bool verbose flag to smolagents LogLevel."""
-    if LogLevel is None:
-        return verbose  # fallback for very old versions
-    return LogLevel.DEBUG if verbose else LogLevel.ERROR
-
-
-_INSTRUCTIONS = (
-    "每次回复都必须调用一个工具。"
-    "当你已经得出最终答案，或者已经收集到足够信息时，"
-    "必须立即调用 final_answer(answer=\"...\") 工具来提交结果，不要再继续搜索或思考。"
-    "禁止输出不带工具调用的纯文本，否则系统将报错并重试。"
-)
+_log = logging.getLogger(__name__)
 
 
 class AgentRunner(ABC):
-    """Abstract runner — swap to change agent strategy (tool_calling vs code)."""
+    """Abstract runner — implementations define the agent loop strategy."""
 
     @abstractmethod
     def run(self, prompt: str) -> str:
         """Execute a task and return the final answer."""
 
 
-class ToolCallingAgentRunner(AgentRunner):
-    def __init__(self, model: Any, tools: List[Any], verbose: bool, show_thinking: bool) -> None:
-        # ThinkTool has been removed: Gemma uses its native <|channel>thought...<channel|>
-        # reasoning blocks for internal reasoning. The model wrapper (_LlamaCppSmolagentsModel)
-        # strips these blocks and optionally displays them based on show_thinking config.
-        self._agent = ToolCallingAgent(
-            tools=list(tools),
+class PlanExecuteRunner(AgentRunner):
+    """Plan-then-Execute agent loop.
+
+    1. Planner calls the model once to produce a structured plan.
+    2. Executor runs all plan steps, collecting observations.
+    3. Synthesizer calls the model to produce a final answer,
+       optionally requesting more tool calls (up to max_exec_rounds).
+    """
+
+    def __init__(
+        self,
+        model: Any,
+        tools: list,
+        config: AgentConfig,
+        show_thinking: bool = True,
+    ) -> None:
+        self._model = model
+        self._tools = tools
+        self._config = config
+        self._show_thinking = show_thinking
+        self._planner = Planner(
             model=model,
-            verbosity_level=_verbosity(verbose),
-            instructions=_INSTRUCTIONS,
+            tools=tools,
+            max_plan_steps=config.max_plan_steps,
+            show_thinking=show_thinking,
+        )
+        self._executor = Executor(tools=tools)
+        self._synthesizer = Synthesizer(
+            model=model,
+            tools=tools,
+            max_rounds=config.max_exec_rounds,
+            show_thinking=show_thinking,
         )
 
     def run(self, prompt: str) -> str:
-        return self._agent.run(prompt)
+        _log.info("PlanExecuteRunner.run: task=%r", prompt[:100])
 
+        # Phase 1: Plan
+        try:
+            plan = self._planner.plan(prompt)
+        except RuntimeError as e:
+            _log.error("Planner failed: %s", e)
+            return f"规划失败：{e}"
 
-class CodeAgentRunner(AgentRunner):
-    def __init__(self, model: Any, tools: List[Any], verbose: bool) -> None:
-        self._agent = CodeAgent(
-            tools=tools, model=model, verbosity_level=_verbosity(verbose)
-        )
+        _log.info("Plan: %d steps", len(plan))
+        if self._config.verbose:
+            for i, step in enumerate(plan, 1):
+                _log.info("  Step %d: %s(%s) — %s", i, step.tool, step.args, step.reason)
 
-    def run(self, prompt: str) -> str:
-        return self._agent.run(prompt)
+        # Phase 2: Execute
+        observations = self._executor.run_plan(plan)
+
+        # Phase 3: Synthesize
+        ctx = SynthContext(task=prompt, observations=observations, round=0)
+        answer = self._synthesizer.synthesize(ctx)
+        return answer
 
 
 def create_agent_runner(
-    config: AgentConfig, model: Any, tools: List[Any]
+    config: AgentConfig,
+    model: Any,
+    tools: list,
 ) -> AgentRunner:
-    if config.mode == "tool_calling":
-        return ToolCallingAgentRunner(
-            model, tools,
-            verbose=config.verbose,
-            show_thinking=config.show_thinking,
-        )
-    if config.mode == "code":
-        return CodeAgentRunner(model, tools, verbose=config.verbose)
-    raise ValueError(f"Unknown agent mode: {config.mode!r}")
+    return PlanExecuteRunner(
+        model=model,
+        tools=tools,
+        config=config,
+        show_thinking=config.show_thinking,
+    )
