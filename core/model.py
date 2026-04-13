@@ -269,14 +269,14 @@ class _LlamaCppSmolagentsModel(Model):
         if tool_calls is None:
             tool_calls = _parse_json_tool_calls(content_for_parse)
 
-        # Strategy 2.5: Python-list format   [{'name': '...', 'arguments': {...}}]
+        # Strategy 2.5: Python-list format (two known schemas)
         # smolagents system prompt includes a "Calling tools:\n[{...}]" example that
         # Gemma follows literally — using single-quote Python dicts instead of JSON.
-        # We convert it to JSON using ast.literal_eval which safely handles Python literals.
+        # We handle two schemas the model has been observed to use:
+        #   Schema A: [{'name': 'tool', 'arguments': {...}}]
+        #   Schema B: [{'id': '...', 'type': 'tool_name', 'function': {...}}]  ← smolagents internal repr
         if tool_calls is None:
             import ast as _ast
-            import json as _json2
-            # Find Python list literals in the content
             _PY_LIST_RE = re.compile(r'\[\s*\{.*?\}\s*\]', re.DOTALL)
             for lm in _PY_LIST_RE.finditer(content_for_parse):
                 try:
@@ -289,10 +289,19 @@ class _LlamaCppSmolagentsModel(Model):
                 for item in py_obj:
                     if not isinstance(item, dict):
                         continue
+                    # Schema A: {name, arguments}  ← smolagents system prompt example
                     name = item.get("name")
+                    args = item.get("arguments", {})
+                    # Schema B: {id, type, function: {name, arguments}}
+                    #           ← smolagents ActionStep.to_messages() uses tc.dict()
+                    #           produces: {'id':..,'type':'function','function':{'name':..,'arguments':{..}}}
+                    if not name:
+                        fn = item.get("function", {})
+                        if isinstance(fn, dict):
+                            name = fn.get("name")
+                            args = fn.get("arguments", {})
                     if not name or not isinstance(name, str):
                         continue
-                    args = item.get("arguments", {})
                     if isinstance(args, str):
                         args = {"answer": args} if name == "final_answer" else {"input": args}
                     elif not isinstance(args, dict):
@@ -305,7 +314,7 @@ class _LlamaCppSmolagentsModel(Model):
                         )
                     )
                 if py_calls:
-                    _log.info("Parsed %d tool call(s) via Python-list format", len(py_calls))
+                    _log.info("Parsed %d tool call(s) via Python-list format (schema A/B)", len(py_calls))
                     tool_calls = py_calls
                     break
 
