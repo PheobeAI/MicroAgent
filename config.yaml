@@ -9,12 +9,12 @@ model:
   # CPU 推理线程数（建议 4-6，不影响系统其他任务）
   n_threads: 6
   # 上下文长度（token 数）
-  n_ctx: 131072
+  # 对话场景下系统提示+工具描述+历史约 1000-2000 token，8192 完全够用。
+  # 131072 会导致 KV Cache 占满显存（RTX 4080 16GB），推理速度暴跌。
+  n_ctx: 8192
   # 单次最大生成 token 数
-  # Gemma 模型会先输出 <|channel>thought...思考块，再输出实际回答或 tool call。
-  # 512 对于复杂问题完全不够（思考块本身就可能超过 1000 token）。
-  # 推荐 4096；如果显存充足可设到 8192。
-  max_tokens: 4096
+  # Gemma thought 块 + 实际回答，2048 对大多数问题足够。
+  max_tokens: 2048
 
 agent:
   # 运行模式：tool_calling（推荐）或 code（需要更强模型）
@@ -56,7 +56,7 @@ memory:
   # SQLite 路径（相对于本配置文件；main.py 通过 resolve_relative() 转绝对路径）
   db_path: memory\microagent.db
   # 上下文窗口大小（token 数），与 model.n_ctx 保持一致
-  context_window_tokens: 131072
+  context_window_tokens: 8192
   # 自动压缩阈值：context 占用超过此比例时触发（步骤 3 生效）
   compression_threshold: 0.80
   # 压缩时保留最近 N 轮对话不压缩
