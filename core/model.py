@@ -218,20 +218,17 @@ class _LlamaCppSmolagentsModel(Model):
         if tool_calls is None:
             tool_calls = _parse_json_tool_calls(content_for_parse)
 
-        # Strategy 3: plain text — synthesize final_answer so smolagents can
-        # return the result instead of retrying indefinitely.
+        # NOTE: No plain-text fallback (Strategy 3 removed).
+        # If neither Gemma-native nor JSON tool calls are found, we return the
+        # content as-is and let smolagents handle the error / retry naturally.
+        # Silently synthesizing final_answer masks format bugs and makes debugging
+        # harder — if the model isn't following the tool-call protocol, we want
+        # to see that failure explicitly in logs, not hide it.
         if tool_calls is None and content_for_parse.strip():
-            _log.info("LLM output plain text, synthesizing final_answer")
-            tool_calls = [
-                ChatMessageToolCall(
-                    id="call_0",
-                    type="function",
-                    function=ChatMessageToolCallFunction(
-                        name="final_answer",
-                        arguments={"answer": content_for_parse.strip()},
-                    ),
-                )
-            ]
+            _log.warning(
+                "LLM output contained no tool call (neither Gemma-native nor JSON). "
+                "Raw content: %r", content_for_parse[:300]
+            )
 
         return ChatMessage(
             role=MessageRole(msg["role"]),
