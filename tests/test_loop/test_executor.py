@@ -57,6 +57,17 @@ def test_executor_run_plan():
     assert all(o.ok for o in observations)
 
 
+def test_executor_remaps_string_args_to_first_param():
+    """当模型把 args 解析成字符串时，Executor 应当将值映射到工具第一个参数。"""
+    executor = Executor(tools=[OkTool()])
+    # 模型输出 args:<|"|>hello<|"|> 而不是 args:{x:<|"|>hello<|"|>}
+    # 导致 step.args = {"args": "hello"}
+    step = Step(tool="ok_tool", args={"args": "hello"}, reason="测试")
+    obs = executor.execute(step)
+    assert obs.ok is True
+    assert obs.result == "结果: hello"
+
+
 def test_executor_run_plan_continues_on_failure():
     executor = Executor(tools=[OkTool(), FailTool()])
     plan = [

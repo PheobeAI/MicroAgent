@@ -26,13 +26,42 @@ class Executor:
             _log.warning(err)
             return Observation(step=step, result="", ok=False, error=err)
         try:
-            result = tool(**step.args)
+            args = self._normalize_args(tool, step.args)
+            result = tool(**args)
             _log.info("Tool %r OK. Result length: %d", step.tool, len(result))
             return Observation(step=step, result=str(result), ok=True, error=None)
         except Exception as exc:
             err = f"{type(exc).__name__}: {exc}"
             _log.warning("Tool %r raised: %s", step.tool, err)
             return Observation(step=step, result="", ok=False, error=err)
+
+    @staticmethod
+    def _normalize_args(tool: Any, args: dict) -> dict:
+        """Fix model mis-formatting where args value is a string instead of a dict.
+
+        When the model outputs `args:<|"|>some text<|"|>` instead of
+        `args:{param:<|"|>some text<|"|>}`, the parsed args dict will be
+        `{"args": "some text"}`. We detect this and remap to the tool's
+        first parameter name.
+        """
+        if not args:
+            return args
+
+        # Check if the only key is literally "args" and the tool has parameters
+        if (
+            list(args.keys()) == ["args"]
+            and hasattr(tool, "parameters")
+            and tool.parameters
+        ):
+            value = args["args"]
+            first_param = tool.parameters[0].name
+            _log.debug(
+                "Remapping args string %r → {%s: %r} for tool %r",
+                value, first_param, value, tool.name,
+            )
+            return {first_param: value}
+
+        return args
 
     def run_plan(self, plan: list[Step]) -> list[Observation]:
         """Execute all steps in order. Continues even if a step fails."""
