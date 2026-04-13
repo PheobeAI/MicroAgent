@@ -32,6 +32,55 @@ _GEMMA_TOOL_CALL_RE = re.compile(
 )
 _GEMMA_KV_RE = re.compile(r'(\w+):<\|"\|>(.*?)<\|"\|>', re.DOTALL)
 
+# JSON object pattern (handles one level of nesting)
+_JSON_OBJ_RE = re.compile(r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}', re.DOTALL)
+
+
+def _parse_json_tool_calls(content: str) -> Optional[List]:
+    """Parse smolagents JSON-format tool calls from content.
+
+    smolagents ToolCallingAgent asks the model to respond with:
+        Action:
+        {"name": "tool_name", "arguments": "value_or_dict"}
+
+    The model may output one or more such JSON blobs.  We scan for all
+    top-level JSON objects that have a "name" key and convert them to
+    ChatMessageToolCall objects.
+
+    Note: when "arguments" is a bare string (not a dict), we treat it as
+    the value of the "answer" key for final_answer, or wrap it in {"input":
+    ...} for other tools — matching what the callers expect.
+    """
+    import json as _json
+
+    tool_calls = []
+    for m in _JSON_OBJ_RE.finditer(content):
+        try:
+            data = _json.loads(m.group())
+        except _json.JSONDecodeError:
+            continue
+
+        name = data.get("name")
+        if not name or not isinstance(name, str):
+            continue
+
+        args = data.get("arguments", {})
+        if isinstance(args, str):
+            # Bare string argument — wrap appropriately per tool convention.
+            args = {"answer": args} if name == "final_answer" else {"input": args}
+        elif not isinstance(args, dict):
+            args = {"input": str(args)}
+
+        tool_calls.append(
+            ChatMessageToolCall(
+                id=f"call_{len(tool_calls)}",
+                type="function",
+                function=ChatMessageToolCallFunction(name=name, arguments=args),
+            )
+        )
+
+    return tool_calls if tool_calls else None
+
 
 def _parse_gemma_tool_calls(content: str) -> Optional[List]:
     """Detect and parse Gemma native tool-call format into ChatMessageToolCall list.
@@ -106,14 +155,18 @@ class _LlamaCppSmolagentsModel(Model):
         _log = _logging.getLogger(__name__)
         _log.info("LLM raw output: %r", content[:800] if content else "<empty>")
 
-        # llama-cpp fails to parse Gemma's native tool format into tool_calls,
-        # so we parse it ourselves from the raw content.
+        # Strategy 1: Gemma native format  <|tool_call>call:NAME{...}<tool_call|>
         tool_calls = _parse_gemma_tool_calls(content)
 
-        # Fallback: if the model output plain text (no Gemma tool-call tokens),
-        # synthesize a final_answer tool call so smolagents can return the result
-        # instead of retrying indefinitely with "does not contain any JSON blob".
+        # Strategy 2: smolagents JSON format  {"name": "...", "arguments": ...}
+        # (the model follows smolagents' system prompt instructions and outputs JSON)
+        if tool_calls is None:
+            tool_calls = _parse_json_tool_calls(content)
+
+        # Strategy 3: plain text — synthesize final_answer so smolagents can
+        # return the result instead of retrying indefinitely.
         if tool_calls is None and content.strip():
+            _log.info("LLM output plain text, synthesizing final_answer")
             tool_calls = [
                 ChatMessageToolCall(
                     id="call_0",
