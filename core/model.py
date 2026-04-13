@@ -32,6 +32,12 @@ _GEMMA_TOOL_CALL_RE = re.compile(
 )
 _GEMMA_KV_RE = re.compile(r'(\w+):<\|"\|>(.*?)<\|"\|>', re.DOTALL)
 
+# Gemma thinking/reasoning channel blocks:
+# <|channel>thought ... <channel|>
+_GEMMA_THOUGHT_RE = re.compile(
+    r'<\|channel\>thought(.*?)<channel\|>', re.DOTALL
+)
+
 # JSON object pattern (handles one level of nesting)
 _JSON_OBJ_RE = re.compile(r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}', re.DOTALL)
 
@@ -155,17 +161,29 @@ class _LlamaCppSmolagentsModel(Model):
         _log = _logging.getLogger(__name__)
         _log.info("LLM raw output: %r", content[:800] if content else "<empty>")
 
+        # Strip Gemma thought/reasoning channel blocks before parsing.
+        # <|channel>thought ... <channel|> is the model's internal reasoning and
+        # must not be surfaced to the user or treated as a tool call / final answer.
+        thought_matches = list(_GEMMA_THOUGHT_RE.finditer(content))
+        if thought_matches:
+            for tm in thought_matches:
+                _log.debug("LLM thought block (stripped): %s", tm.group(1)[:400].strip())
+            content_for_parse = _GEMMA_THOUGHT_RE.sub("", content).strip()
+            _log.info("LLM content after stripping thought blocks: %r", content_for_parse[:400])
+        else:
+            content_for_parse = content
+
         # Strategy 1: Gemma native format  <|tool_call>call:NAME{...}<tool_call|>
-        tool_calls = _parse_gemma_tool_calls(content)
+        tool_calls = _parse_gemma_tool_calls(content_for_parse)
 
         # Strategy 2: smolagents JSON format  {"name": "...", "arguments": ...}
         # (the model follows smolagents' system prompt instructions and outputs JSON)
         if tool_calls is None:
-            tool_calls = _parse_json_tool_calls(content)
+            tool_calls = _parse_json_tool_calls(content_for_parse)
 
         # Strategy 3: plain text — synthesize final_answer so smolagents can
         # return the result instead of retrying indefinitely.
-        if tool_calls is None and content.strip():
+        if tool_calls is None and content_for_parse.strip():
             _log.info("LLM output plain text, synthesizing final_answer")
             tool_calls = [
                 ChatMessageToolCall(
@@ -173,7 +191,7 @@ class _LlamaCppSmolagentsModel(Model):
                     type="function",
                     function=ChatMessageToolCallFunction(
                         name="final_answer",
-                        arguments={"answer": content.strip()},
+                        arguments={"answer": content_for_parse.strip()},
                     ),
                 )
             ]
