@@ -101,6 +101,11 @@ class _LlamaCppSmolagentsModel(Model):
         msg = response["choices"][0]["message"]
         content = msg.get("content") or ""
 
+        # Log raw model output at INFO level so we can diagnose format issues.
+        import logging as _logging
+        _log = _logging.getLogger(__name__)
+        _log.info("LLM raw output: %r", content[:800] if content else "<empty>")
+
         # llama-cpp fails to parse Gemma's native tool format into tool_calls,
         # so we parse it ourselves from the raw content.
         tool_calls = _parse_gemma_tool_calls(content)
