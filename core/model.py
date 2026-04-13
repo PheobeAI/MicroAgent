@@ -164,6 +164,12 @@ class _LlamaCppSmolagentsModel(Model):
         )
         completion_kwargs["max_tokens"] = self._max_new_tokens
 
+        # Reset llama-cpp KV Cache before each call to prevent prefix-reuse
+        # contamination from previous conversations bleeding into the new prompt.
+        # smolagents resets its message list via reset=True in agent.run(), but
+        # llama-cpp independently caches KV state across calls.
+        self._llm.reset()
+
         response = self._llm.create_chat_completion(**completion_kwargs)
 
         msg = response["choices"][0]["message"]
