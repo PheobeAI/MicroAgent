@@ -17,12 +17,16 @@ model:
   max_tokens: 2048
 
 agent:
-  # 运行模式：tool_calling（推荐）或 code（需要更强模型）
-  mode: tool_calling
-  # 是否显示 smolagents 内部调试日志（面向开发者，通常设为 false）
-  verbose: true
+  # 运行模式：plan_execute（Plan-then-Execute 循环）
+  mode: plan_execute
+  # 是否在日志中打印详细执行步骤
+  verbose: false
   # 是否将模型的推理思考内容展示给用户（默认开启，可设为 false 静默）
   show_thinking: true
+  # Synthesizer 最大追加工具调用轮数
+  max_exec_rounds: 5
+  # Planner 生成计划的最大步骤数
+  max_plan_steps: 10
 
 tools:
   web_search:
@@ -47,9 +51,9 @@ runtime:
   # log_level: 日志文件的记录级别，与控制台显示无关，默认 info
   # 可选值：debug / info / warning / error
   log_level: info
-  # console_verbose: 是否在控制台输出调试信息（smolagents 内部推理步骤等）
+  # console_verbose: 是否在控制台输出调试信息
   # 仅影响终端显示，不影响日志文件内容
-  console_verbose: true
+  console_verbose: false
 
 memory:
   enabled: true
