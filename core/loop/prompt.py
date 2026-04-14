@@ -12,13 +12,21 @@ PLANNER_SYSTEM = """\
 可用工具：
 {tools_description}
 
-输出格式（严格使用以下 Gemma tool call 格式，不得使用其他格式）：
-<|tool_call>call:plan{{steps:<|"|>[{{"tool": "工具名", "args": {{...}}, "reason": "原因"}}]<|"|>}}<tool_call|>
+【输出格式】必须严格按照以下格式，不得有任何偏差：
+<|tool_call>call:plan{{steps:<|"|>[STEPS_JSON]<|"|>}}<tool_call|>
 
-规则：
-- 只选择完成任务真正必要的工具，不要冗余步骤
-- 最多 {max_plan_steps} 步
-- args 必须完整匹配工具的参数定义
+其中 STEPS_JSON 是标准 JSON 数组，每个元素格式如下：
+{{"tool": "工具名称", "args": {{"参数名": "参数值"}}, "reason": "选择该工具的原因"}}
+
+【完整示例】（假设任务是"搜索天气"）：
+<|tool_call>call:plan{{steps:<|"|>[{{"tool": "web_search", "args": {{"query": "今日天气预报"}}, "reason": "需要搜索最新天气信息"}}]<|"|>}}<tool_call|>
+
+【强制规则】：
+1. steps 的值必须用 <|"|> 和 <|"|> 包裹，内部是合法的 JSON 数组
+2. JSON 中所有 key 和字符串 value 必须使用双引号，不得使用单引号或不加引号
+3. args 必须是 JSON 对象格式，不得写成普通字符串
+4. 只选择完成任务真正必要的步骤，最多 {max_plan_steps} 步
+5. 除了上述 tool call 格式，不得输出任何其他内容
 """
 
 PLANNER_USER = "用户任务：{task}"
