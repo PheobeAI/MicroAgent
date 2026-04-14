@@ -122,9 +122,10 @@ class Planner:
 
         body_raw = steps_section.group(1)
 
-        # Path B: try bare JSON list first (clean, fast)
-        # Clean up stray <eos> tokens inside the JSON body before parsing
+        # Clean up stray <eos> / newlines before attempting JSON
         body_clean = re.sub(r'\n?<eos>', '', body_raw).strip()
+
+        # Path B: strict JSON list
         try:
             steps_data = json.loads(body_clean)
             if isinstance(steps_data, list) and steps_data:
@@ -132,7 +133,18 @@ class Planner:
         except (json.JSONDecodeError, TypeError):
             pass
 
-        # Path A: Gemma native KV nesting
+        # Path C: JS object literal / mixed format — normalise then parse
+        # Handles: {tool: "x", args: {query: "y"}} — unquoted keys
+        normalised = self._js_to_json(body_clean)
+        if normalised != body_clean:
+            try:
+                steps_data = json.loads(normalised)
+                if isinstance(steps_data, list) and steps_data:
+                    return self._steps_from_json(steps_data)
+            except (json.JSONDecodeError, TypeError):
+                pass
+
+        # Path A: Gemma native KV nesting  (<|"|>…<|"|>)
         steps = []
         for block_m in self._STEP_BLOCK_RE.finditer(body_raw):
             block = block_m.group(0)
@@ -142,14 +154,12 @@ class Planner:
             reason = top_kvs.get("reason", "")
 
             args: dict = {}
-            # Extract args: try native KV format first, then JSON object
             args_m = self._ARGS_BLOCK_RE.search(block)
             if args_m:
                 native_args = {m.group(1): m.group(2) for m in self._STEP_KV_RE.finditer(args_m.group(1))}
                 if native_args:
                     args = native_args
                 else:
-                    # args block found but no native KV pairs → try JSON object
                     json_m = self._ARGS_JSON_RE.search(block)
                     if json_m:
                         try:
@@ -157,7 +167,6 @@ class Planner:
                         except (json.JSONDecodeError, TypeError):
                             pass
             else:
-                # No native args block found → try JSON object directly
                 json_m = self._ARGS_JSON_RE.search(block)
                 if json_m:
                     try:
@@ -169,3 +178,20 @@ class Planner:
                 steps.append(Step(tool=tool_name, args=args, reason=reason))
 
         return steps if steps else None
+
+    # ------------------------------------------------------------------
+    # JS-to-JSON normaliser
+    # ------------------------------------------------------------------
+    # Matches unquoted object keys:  word_chars followed by colon
+    _UNQUOTED_KEY_RE = re.compile(r'(?<!["\w])(\b[A-Za-z_]\w*)\s*:', )
+
+    @classmethod
+    def _js_to_json(cls, text: str) -> str:
+        """Best-effort conversion of JS object literal to JSON.
+
+        Only quotes *unquoted* keys. String values that are already quoted
+        are left as-is. Does NOT handle JS comments or single-quoted strings.
+        """
+        # Quote unquoted keys — skip keys that already sit after a quote
+        result = cls._UNQUOTED_KEY_RE.sub(r'"\1":', text)
+        return result
