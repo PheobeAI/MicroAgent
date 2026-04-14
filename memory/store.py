@@ -255,3 +255,41 @@ class MemoryStore:
 
     def delete_fact(self, key: str) -> None:
         self._backend.delete_fact(key)
+
+
+# ── 独立工具函数（供 ContextManager 使用）─────────────────────────────────────
+
+MEMORY_TYPE_MARKERS: dict[str, list[str]] = {
+    "decision":   ["决定", "采用", "选择", "我们决定", "we decided", "let's use", "trade-off"],
+    "preference": ["总是", "永远不", "偏好", "always use", "never do", "prefer"],
+    "milestone":  ["完成", "成功", "发布", "shipped", "working", "achieved"],
+    "problem":    ["报错", "失败", "bug", "error", "failed", "issue", "崩溃"],
+}
+
+
+def detect_memory_type(summary: str) -> str:
+    """根据关键词正则判断 memory_type（无需 LLM）。"""
+    lower = summary.lower()
+    for type_name, markers in MEMORY_TYPE_MARKERS.items():
+        if any(m in lower for m in markers):
+            return type_name
+    return "general"
+
+
+def calc_importance(
+    summary: str,
+    memory_type: str,
+    turns: int,
+    had_compact: bool,
+) -> float:
+    """根据规则计算重要性分数 0.0-1.0（无需 LLM）。"""
+    score = 0.5
+    if memory_type in ("decision", "milestone"):
+        score += 0.3
+    if memory_type == "problem":
+        score += 0.1
+    if had_compact:
+        score += 0.1
+    if turns > 20:
+        score += 0.1
+    return min(score, 1.0)
