@@ -230,7 +230,10 @@ class ContextManager:
         """检查是否超过阈值，超过则压缩。返回是否触发了压缩。"""
         budget = self.token_usage()
         ratio = budget.used_in_current_context / budget.context_window
-        if ratio >= self._config.compress_threshold:
+        # 兼容 compress_threshold 和 compression_threshold 两种 config 字段名
+        threshold = getattr(self._config, "compress_threshold",
+                            getattr(self._config, "compression_threshold", 0.8))
+        if ratio >= threshold:
             self.force_compress()
             return True
         return False

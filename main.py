@@ -49,17 +49,43 @@ def main() -> None:
         f"工具: {len(tools)} 个已启用"
     )
 
-    # ── 4. Create agent ───────────────────────────────────────────────────────
-    # runtime.console_verbose overrides agent.verbose so users have one clear
-    # knob for "show debug output on console" without touching agent config.
+    # ── 4. Create memory manager ──────────────────────────────────────────────
+    from memory.manager import MemoryManager
+    memory = None
+    if config.memory.enabled:
+        from core.paths import resolve_relative
+        db_path = str(resolve_relative(config_path.parent, config.memory.db_path))
+        config.memory.db_path = db_path
+
+        def _token_counter(messages: list) -> int:
+            """Estimate token count using llama-cpp tokenizer."""
+            try:
+                text = " ".join(str(m.get("content", "")) for m in messages)
+                return len(backend._llm.tokenize(text.encode()))
+            except Exception:
+                return sum(len(str(m)) // 3 for m in messages)
+
+        memory = MemoryManager(config.memory, _token_counter)
+        memory_prefix = memory.on_session_start()
+        # Inject memory tools
+        from tools.memory_tools import MemoryRecallTool, MemoryStoreTool, MemoryForgetTool
+        tools.append(MemoryRecallTool(memory))
+        tools.append(MemoryStoreTool(memory))
+        tools.append(MemoryForgetTool(memory))
+
+    # ── 5. Create agent ───────────────────────────────────────────────────────
     if config.runtime.console_verbose:
         config.agent.verbose = True
     from core.agent import create_agent_runner
     agent = create_agent_runner(config.agent, backend, tools)
 
-    # ── 5. Start CLI ──────────────────────────────────────────────────────────
+    # ── 6. Start CLI ──────────────────────────────────────────────────────────
     from cli.app import run_cli
-    run_cli(agent, config, tools)
+    try:
+        run_cli(agent, config, tools, memory=memory)
+    finally:
+        if memory:
+            memory.on_session_end(model=backend)
 
 
 if __name__ == "__main__":

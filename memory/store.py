@@ -164,9 +164,6 @@ class SQLiteBackend(StorageBackend):
             self._conn.close()
             self._conn = None
 
-    def __del__(self) -> None:
-        self.close()
-
     # ── Internal ──────────────────────────────────────────────────────────────
 
     @staticmethod

@@ -12,34 +12,53 @@ PLANNER_SYSTEM = """\
 可用工具：
 {tools_description}
 
-【输出格式】必须严格按照以下格式，不得有任何偏差：
-<|tool_call>call:plan{{steps:<|"|>[STEPS_JSON]<|"|>}}<tool_call|>
+【输出格式】必须严格输出一个 JSON 对象，不得有任何其他内容：
+{{"steps": [STEPS_ARRAY]}}
 
-其中 STEPS_JSON 是标准 JSON 数组，每个元素格式如下：
-{{"tool": "工具名称", "args": {{"参数名": "参数值"}}, "reason": "选择该工具的原因"}}
+其中 STEPS_ARRAY 是 JSON 数组，每个元素格式：
+{{"tool": "工具名称", "args": {{"参数名": "参数值"}}, "reason": "选择原因"}}
 
-【完整示例】（假设任务是"搜索天气"）：
-<|tool_call>call:plan{{steps:<|"|>[{{"tool": "web_search", "args": {{"query": "今日天气预报"}}, "reason": "需要搜索最新天气信息"}}]<|"|>}}<tool_call|>
+【完整示例】（任务是"搜索天气"）：
+{{"steps": [{{"tool": "web_search", "args": {{"query": "今日天气预报"}}, "reason": "需要搜索最新天气信息"}}]}}
+
+【多步示例】（任务是"先查记忆再搜索"）：
+{{"steps": [{{"tool": "memory_recall", "args": {{}}, "reason": "查询已知信息"}}, {{"tool": "web_search", "args": {{"query": "搜索词"}}, "reason": "补充最新信息"}}]}}
 
 【强制规则】：
-1. steps 的值必须用 <|"|> 和 <|"|> 包裹，内部是合法的 JSON 数组
-2. JSON 中所有 key 和字符串 value 必须使用双引号，不得使用单引号或不加引号
-3. args 必须是 JSON 对象格式，不得写成普通字符串
-4. 只选择完成任务真正必要的步骤，最多 {max_plan_steps} 步
-5. 除了上述 tool call 格式，不得输出任何其他内容
+1. 只输出一个 JSON 对象，不得输出任何其他文字、标签或格式
+2. 所有 key 和字符串 value 必须使用双引号
+3. args 必须是 JSON 对象（可以为空 {{}}），不得写成字符串
+4. steps 必须是 JSON 数组，每个元素必须是 JSON 对象（用 {{}} 包裹，不得用 []）
+5. 只选择完成任务真正必要的步骤，最多 {max_plan_steps} 步
 """
 
 PLANNER_USER = "用户任务：{task}"
 
 SYNTHESIZER_SYSTEM = """\
-你是一个回答助手。根据以下工具执行结果，回答用户的问题。
+你是一个回答助手。根据工具执行结果和对话历史，回答用户的问题。
 
-如果现有信息已经足够，直接输出答案文本（不需要任何特殊格式，直接写答案即可）。
-如果还需要查询更多信息，使用以下格式调用工具：
-<|tool_call>call:工具名{{参数名:<|"|>参数值<|"|>}}<tool_call|>
+你必须严格输出以下两种 JSON 格式之一，不得有任何其他内容：
+
+1. 输出最终答案：
+{{"action": "answer", "text": "你的完整回答内容"}}
+
+2. 还需要调用一个工具时：
+{{"action": "工具名", "args": {{"参数名": "参数值"}}}}
 
 可追加使用的工具：
 {tools_description}
+
+【示例】
+- 直接回答：{{"action": "answer", "text": "根据您刚才说的，您叫王磊。"}}
+- 需要搜索：{{"action": "web_search", "args": {{"query": "搜索词"}}}}
+- 需要查记忆：{{"action": "memory_recall", "args": {{"query": "查询词"}}}}
+
+【决策规则】
+- 如果对话历史或执行结果中已有足够信息，直接输出 answer，绝对不要再调工具
+- 如果当前轮工具执行结果已返回，直接综合结果输出 answer
+- 只有在已有信息确实不足以回答时，才调用工具
+- 不要对同一个问题反复调用同一工具
+- 只输出一个 JSON 对象，不得有任何其他文字
 """
 
 SYNTHESIZER_USER = """\

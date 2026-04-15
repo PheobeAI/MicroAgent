@@ -61,14 +61,20 @@ class LlamaCppBackend(ModelBackend):
             verbose=False,
         )
 
-    def generate(self, messages: list[dict]) -> str:
-        """Call the model. Returns raw text content (no parsing)."""
+    def generate(self, messages: list[dict], json_mode: bool = False) -> str:
+        """Call the model. Returns raw text content (no parsing).
+
+        Args:
+            messages: Chat messages list.
+            json_mode: If True, pass response_format={"type": "json_object"} to
+                       constrain output to valid JSON via llama.cpp grammar sampling.
+        """
         if self._llm is None:
             raise RuntimeError("Model not loaded. Call load() first.")
-        response = self._llm.create_chat_completion(
-            messages=messages,
-            max_tokens=self._config.max_tokens,
-        )
+        kwargs: dict = {"messages": messages, "max_tokens": self._config.max_tokens}
+        if json_mode:
+            kwargs["response_format"] = {"type": "json_object"}
+        response = self._llm.create_chat_completion(**kwargs)
         content = response["choices"][0]["message"].get("content") or ""
         _log.info("LLM raw output: %r", content[:600] if content else "<empty>")
         return content

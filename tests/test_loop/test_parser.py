@@ -56,6 +56,25 @@ def test_strip_truncated_thought():
     assert len(thoughts) == 1
 
 
+def test_parse_paren_format():
+    """Bug fix: model sometimes outputs call:NAME(key:<|"|>val<|"|>) with parens instead of braces."""
+    raw = '<|tool_call>call:web_search(query:<|"|>Rust 所有权机制是什么<|"|>)\n<eos>'
+    result = parse_gemma_tool_call(raw)
+    assert result is not None, "Should parse paren-format tool call"
+    assert result["name"] == "web_search"
+    assert result["args"]["query"] == "Rust 所有权机制是什么"
+
+
+def test_parse_paren_format_multi_arg():
+    """Paren format with multiple args."""
+    raw = '<|tool_call>call:memory_store(key:<|"|>user_name<|"|>, value:<|"|>王磊<|"|>)'
+    result = parse_gemma_tool_call(raw)
+    assert result is not None
+    assert result["name"] == "memory_store"
+    assert result["args"]["key"] == "user_name"
+    assert result["args"]["value"] == "王磊"
+
+
 def test_strip_no_thought():
     content = "普通内容，没有 thought 块"
     text, thoughts = strip_thought_blocks(content)

@@ -55,12 +55,23 @@ class PlanExecuteRunner(AgentRunner):
             show_thinking=show_thinking,
         )
 
-    def run(self, prompt: str) -> str:
+    def run(
+        self,
+        prompt: str,
+        history: list[dict] | None = None,
+        memory_prefix: str | None = None,
+    ) -> str:
+        """执行任务。
+        
+        Args:
+            history: 已有的对话历史消息列表（含 user/assistant 轮次）。
+            memory_prefix: MemoryManager 生成的记忆前缀文本，注入 system prompt 末尾。
+        """
         _log.info("PlanExecuteRunner.run: task=%r", prompt[:100])
 
-        # Phase 1: Plan
+        # Phase 1: Plan（将历史消息作为额外上下文传给 Planner）
         try:
-            plan = self._planner.plan(prompt)
+            plan = self._planner.plan(prompt, history=history, memory_prefix=memory_prefix)
         except RuntimeError as e:
             _log.error("Planner failed: %s", e)
             return f"规划失败：{e}"
@@ -73,9 +84,9 @@ class PlanExecuteRunner(AgentRunner):
         # Phase 2: Execute
         observations = self._executor.run_plan(plan)
 
-        # Phase 3: Synthesize
+        # Phase 3: Synthesize（携带历史上下文和记忆前缀）
         ctx = SynthContext(task=prompt, observations=observations, round=0)
-        answer = self._synthesizer.synthesize(ctx)
+        answer = self._synthesizer.synthesize(ctx, history=history, memory_prefix=memory_prefix)
         return answer
 
 

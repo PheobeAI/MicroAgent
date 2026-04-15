@@ -84,5 +84,9 @@ def load_config(config_path: Path) -> AppConfig:
     if config_path.exists():
         with open(config_path, "r", encoding="utf-8") as f:
             data = yaml.safe_load(f) or {}
+        # 向后兼容：老配置写 tool_calling，自动升级为 plan_execute
+        if isinstance(data.get("agent"), dict):
+            if data["agent"].get("mode") == "tool_calling":
+                data["agent"]["mode"] = "plan_execute"
         return AppConfig(**data)
     return AppConfig()

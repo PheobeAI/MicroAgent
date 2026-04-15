@@ -1,68 +1,76 @@
 # memory/manager.py
-"""
-MemoryManager — Facade 层（步骤 1 stub）。
-
-已实现：持久化层接入（MemoryStore + SQLiteBackend）、facts/episodes CRUD、生命周期钩子。
-占位方法（get_messages_for_llm / append_message / maybe_compress / force_compress）
-打印 WARNING 后返回空值；步骤 2-3 逐步实现。
-"""
+"""MemoryManager — Facade 层，协调 MemoryStore 与 ContextManager。"""
 from __future__ import annotations
 
 import logging
 from typing import Callable
 
 from core.config import MemoryConfig
+from memory.context_manager import ContextManager, Message, MSG_NORMAL, TokenBudget
 from memory.store import Episode, MemoryStore, SQLiteBackend
 
 log = logging.getLogger(__name__)
 
 
 class MemoryManager:
+    """
+    对 cli/app.py 和 core/agent.py 暴露统一接口，屏蔽内部拆分细节。
+    调用方只与此类交互，不直接接触 MemoryStore 或 ContextManager。
+    """
+
     def __init__(
         self,
         config: MemoryConfig,
         token_counter: Callable[[list], int],
     ) -> None:
         self._config = config
-        self._token_counter = token_counter
         self.store = MemoryStore(SQLiteBackend(config.db_path))
-        self.context = None  # 步骤 2 接入 ContextManager
+        self.context = ContextManager(self.store, config, token_counter)
 
     # ── 生命周期 ──────────────────────────────────────────────────────────────
 
     def on_session_start(self) -> str:
-        """
-        初始化持久化层，返回 context prefix 字符串。
-        步骤 1：连接 DB，返回 ""。步骤 4：组装两层 prefix。
-        """
+        """连接 DB，组装前两层 context_prefix，返回字符串。"""
         self.store.load()
-        return ""
+        return self.context.start_session()
 
     def inject_rag_layer(self, user_input: str) -> None:
-        """首条用户消息后懒加载第三层 prefix（步骤 4 实现）。"""
+        """首条用户消息到达后懒加载第三层（相关历史）。"""
+        self.context.inject_rag_layer(user_input)
 
-    def on_session_end(self) -> None:
+    def on_session_end(self, model=None) -> None:
+        """Session 结束：生成摘要并存储 episode，关闭 DB 连接。
+        
+        即使被 KeyboardInterrupt 或其他异常中断也不抛出，确保 DB 正常关闭。
         """
-        session 结束处理。
-        步骤 1：关闭 DB。步骤 3：生成摘要并存储 episode。
-        """
-        self.store.close()
+        try:
+            self.context.end_session(model=model)
+        except KeyboardInterrupt:
+            log.warning("Session end interrupted by user, skipping summary generation")
+        except Exception as e:
+            log.error("Session end failed: %s", e)
+        finally:
+            try:
+                self.store.close()
+            except Exception as e:
+                log.error("Store close failed: %s", e)
 
-    # ── 对话管理（步骤 2-3 实现）─────────────────────────────────────────────
+    # ── 对话管理 ──────────────────────────────────────────────────────────────
 
-    def get_messages_for_llm(self) -> list:
-        log.warning("MemoryManager.get_messages_for_llm not yet implemented (Step 2)")
-        return []
+    def get_messages_for_llm(self) -> list[dict]:
+        return self.context.get_messages_for_llm()
 
-    def append_message(self, message: object) -> None:
-        log.warning("MemoryManager.append_message not yet implemented (Step 2)")
+    def append_user(self, content: str) -> None:
+        self.context.append_message(Message(role="user", content=content))
 
-    def maybe_compress(self) -> bool:
-        log.warning("MemoryManager.maybe_compress not yet implemented (Step 3)")
-        return False
+    def append_assistant(self, content: str) -> None:
+        self.context.append_message(Message(role="assistant", content=content))
 
-    def force_compress(self) -> None:
-        log.warning("MemoryManager.force_compress not yet implemented (Step 3)")
+    def maybe_compress(self, model=None) -> bool:
+        return self.context.maybe_compress()
+
+    def force_compress(self, model=None) -> None:
+        self.context.force_compress(model=model)
 
     # ── 事实管理 ──────────────────────────────────────────────────────────────
 
@@ -85,3 +93,13 @@ class MemoryManager:
 
     def episode_count(self) -> int:
         return self.store.count_episodes()
+
+    # ── 状态查询 ──────────────────────────────────────────────────────────────
+
+    def token_usage(self) -> TokenBudget:
+        return self.context.token_usage()
+
+    @property
+    def prefix(self) -> str:
+        """当前记忆前缀文本（含所有已注入的层）。"""
+        return self.context._prefix
